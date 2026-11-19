@@ -1081,3 +1081,24 @@ body.auth-mode .joinbar { display: none; }
 .pc-car span { white-space: nowrap; overflow: hidden; text-overflow: ellipsis; }
 .pc-car.on { background: var(--yellow); border-color: var(--ink); }
 .garage-scroll { scroll-padding: 0 16px; }
+
+/* ───── "Sistema la foto" (inquadratura) ───── */
+.crop-sheet .sheet-head .link { color: var(--ink-soft); }
+.crop-hint { margin: 2px 0 10px; color: var(--ink-soft); }
+.crop-frame { position: relative; width: 100%; max-height: 52vh; overflow: hidden; background: #111; border: 3px solid var(--ink); box-shadow: 4px 4px 0 var(--ink); touch-action: none; cursor: grab; user-select: none; -webkit-user-select: none; }
+.crop-frame.round { width: min(100%, 300px); margin: 0 auto; }
+.crop-frame.round::after { content: ''; position: absolute; inset: 0; border-radius: 50%; box-shadow: 0 0 0 999px rgba(0,0,0,.55); pointer-events: none; }
+.crop-frame img { position: absolute; left: 0; top: 0; max-width: none; transform-origin: 0 0; pointer-events: none; }
+.crop-frame::before { content: ''; position: absolute; inset: 0; z-index: 1; pointer-events: none;
+  background: linear-gradient(90deg, transparent calc(33.33% - 1px), rgba(255,255,255,.35) 33.33%, transparent calc(33.33% + 1px), transparent calc(66.66% - 1px), rgba(255,255,255,.35) 66.66%, transparent calc(66.66% + 1px)),
+              linear-gradient(0deg, transparent calc(33.33% - 1px), rgba(255,255,255,.35) 33.33%, transparent calc(33.33% + 1px), transparent calc(66.66% - 1px), rgba(255,255,255,.35) 66.66%, transparent calc(66.66% + 1px)); }
+.crop-zoom { display: flex; align-items: center; gap: 10px; margin: 16px 0 0; }
+.crop-zoom .ic { width: 20px; height: 20px; flex: none; }
+.crop-zoom input { flex: 1; accent-color: var(--red); height: 28px; }
+.crop-sheet .btn.primary { margin-top: 16px; gap: 8px; }
+.crop-sheet .btn .ic { width: 20px; height: 20px; }
+.car-edit-pic { aspect-ratio: 16 / 10; }
+.ce-pic-actions { display: flex; justify-content: flex-end; gap: 16px; margin-top: 10px; font-size: 14px; }
+.ce-pic-actions:empty { display: none; }
+.ce-pic-actions .link { color: var(--red); }
+.crop-frame { max-height: none; margin: 0 auto; }

@@ -1408,6 +1408,78 @@
       inp.click();
     });
   }
+  // "Sistema la foto": la sposti col dito e la ingrandisci (pizzico o cursore) dentro il riquadro;
+  // si salva esattamente quell'inquadratura. src = File o indirizzo; aspect = larghezza/altezza; outW = larghezza finale.
+  function cropImage(src, aspect, outW, round) {
+    return new Promise((resolve) => {
+      const url = typeof src === 'string' ? src : URL.createObjectURL(src);
+      const sh = openSheet(`
+        <div class="sheet-head"><h2 class="h2">${t('cropTitle')}</h2><button class="link" data-close>${t('cancel')}</button></div>
+        <p class="muted small crop-hint">${t('cropHint')}</p>
+        <div class="crop-frame ${round ? 'round' : ''}" style="aspect-ratio:${aspect}"><img alt="" draggable="false" /></div>
+        <label class="crop-zoom">${icon('search')}<input type="range" min="1" max="4" step="0.01" value="1" aria-label="zoom" /></label>
+        <button class="btn primary" id="crop-ok">${icon('check')} ${t('cropOk')}</button>`, () => finish(null));
+      sh.classList.add('crop-sheet');
+      const frame = $('.crop-frame', sh), img = $('img', frame), zoomIn = $('.crop-zoom input', sh);
+      let done = false, W = 0, H = 0, s0 = 1, z = 1, x = 0, y = 0;
+      function finish(v) { if (done) return; done = true; if (typeof src !== 'string') URL.revokeObjectURL(url); resolve(v); }
+      const clamp = () => {
+        const s = s0 * z, iw = img.naturalWidth * s, ih = img.naturalHeight * s;
+        x = Math.min(0, Math.max(W - iw, x)); y = Math.min(0, Math.max(H - ih, y));
+        img.style.width = iw + 'px'; img.style.height = ih + 'px';
+        img.style.transform = `translate(${x}px, ${y}px)`;
+      };
+      const zoomTo = (nz, px, py) => {
+        nz = Math.max(1, Math.min(4, nz));
+        const s = s0 * z, ns = s0 * nz;
+        px = px == null ? W / 2 : px; py = py == null ? H / 2 : py;
+        x = px - ((px - x) / s) * ns; y = py - ((py - y) / s) * ns; z = nz;
+        zoomIn.value = z; clamp();
+      };
+      img.onload = () => {
+        // riquadro con le proporzioni esatte dell'immagine finale (anche sugli schermi bassi)
+        W = frame.clientWidth; H = W / aspect;
+        const maxH = Math.max(180, innerHeight * 0.5);
+        if (H > maxH) { H = maxH; W = H * aspect; }
+        if (round) { W = Math.min(W, 300); H = W / aspect; }
+        frame.style.width = W + 'px'; frame.style.height = H + 'px';
+        W = frame.clientWidth; H = frame.clientHeight; // misure interne reali (senza bordo)
+        s0 = Math.max(W / img.naturalWidth, H / img.naturalHeight);
+        x = (W - img.naturalWidth * s0) / 2; y = (H - img.naturalHeight * s0) / 2;
+        clamp();
+      };
+      img.onerror = () => { toast(t('errPhotoUpload')); sh.remove(); finish(null); };
+      if (typeof src === 'string' && !src.startsWith('data:') && !src.startsWith('blob:')) img.crossOrigin = 'anonymous';
+      img.src = url;
+      // trascina con un dito, pizzica con due
+      const pts = new Map();
+      let last = null;
+      frame.addEventListener('pointerdown', (e) => { frame.setPointerCapture(e.pointerId); pts.set(e.pointerId, [e.clientX, e.clientY]); last = null; });
+      frame.addEventListener('pointermove', (e) => {
+        if (!pts.has(e.pointerId)) return;
+        const prev = pts.get(e.pointerId);
+        pts.set(e.pointerId, [e.clientX, e.clientY]);
+        if (pts.size === 1) { x += e.clientX - prev[0]; y += e.clientY - prev[1]; clamp(); return; }
+        const [a, b] = [...pts.values()], d = Math.hypot(a[0] - b[0], a[1] - b[1]);
+        if (last) { const r = frame.getBoundingClientRect(); zoomTo(z * (d / last), (a[0] + b[0]) / 2 - r.left, (a[1] + b[1]) / 2 - r.top); }
+        last = d;
+      });
+      const up = (e) => { pts.delete(e.pointerId); last = null; };
+      frame.addEventListener('pointerup', up); frame.addEventListener('pointercancel', up);
+      frame.addEventListener('wheel', (e) => { e.preventDefault(); const r = frame.getBoundingClientRect(); zoomTo(z * (e.deltaY < 0 ? 1.08 : 0.93), e.clientX - r.left, e.clientY - r.top); }, { passive: false });
+      zoomIn.oninput = () => zoomTo(+zoomIn.value);
+      $('#crop-ok', sh).onclick = () => {
+        const s = s0 * z, cv = document.createElement('canvas');
+        cv.width = outW; cv.height = Math.round((outW * H) / W);
+        const ctx = cv.getContext('2d');
+        ctx.imageSmoothingQuality = 'high';
+        ctx.drawImage(img, -x / s, -y / s, W / s, H / s, 0, 0, cv.width, cv.height);
+        try { cv.toBlob((b) => { sh.remove(); finish(b); }, 'image/jpeg', Auth.cloud ? 0.85 : 0.75); }
+        catch (e) { toast(t('errPhotoUpload')); sh.remove(); finish(null); } // foto online non riutilizzabile: scegline una dal telefono
+      };
+    });
+  }
+
   const fmtKm1 = (d) => (d < 0.1 ? '< 0.1' : d < 10 ? d.toFixed(1) : String(Math.round(d))).replace('.', lang === 'it' ? ',' : '.');
   const phoneSpot = () => new Promise((res) => {
     if (!navigator.geolocation) return res(null);
@@ -1482,11 +1554,16 @@
   }
 
   // foto profilo / auto: rimpicciolita sul telefono e salvata nel profilo
-  async function saveProfilePhoto(kind, file) {
+  // foto profilo: scelta → inquadratura tonda → salvataggio
+  const pickProfilePhoto = () => pickImage()
+    .then((f) => cropImage(f, 1, Auth.cloud ? 480 : 320, true))
+    .then((b) => { if (b) saveProfilePhoto('photo', b, true); });
+  // ready = immagine già inquadrata col ritaglio (non va rimpicciolita di nuovo)
+  async function saveProfilePhoto(kind, file, ready) {
     try {
-      const blob = file ? (kind === 'photo'
+      const blob = !file ? null : ready ? file : (kind === 'photo'
         ? await TougePhoto.resize(file, Auth.cloud ? 480 : 320, 0.85, true)
-        : await TougePhoto.resize(file, Auth.cloud ? 1400 : 900, Auth.cloud ? 0.82 : 0.72)) : null;
+        : await TougePhoto.resize(file, Auth.cloud ? 1400 : 900, Auth.cloud ? 0.82 : 0.72));
       await Store.setProfilePhoto(kind, blob);
       toast(t('photoSaved'));
       route();
@@ -1504,7 +1581,7 @@
         <div class="join-foot"><span></span><button class="link muted" data-close>${t('later')}</button></div>
       </div>`);
     sh.classList.add('join-sheet');
-    $('#pa-go', sh).onclick = () => { pickImage().then((f) => saveProfilePhoto('photo', f)); sh.remove(); };
+    $('#pa-go', sh).onclick = () => { pickProfilePhoto(); sh.remove(); };
   }
 
   // ───────────── GARAGE DEL PILOTA (più auto) ─────────────
@@ -1538,7 +1615,7 @@
     const sh = openSheet(`
       <div class="sheet-head"><h2 class="h2">${t(car ? 'editCar' : 'newCar')}</h2><button class="link" data-close>${t('close')}</button></div>
       <button class="car-edit-pic" id="ce-pic">${cur ? `<img src="${esc(cur)}" alt="" />` : `${icon('camera')}<span>${t('tapPhoto')}</span>`}</button>
-      ${cur ? `<button class="link ce-rm" id="ce-rm">${t('removePhoto')}</button>` : ''}
+      <div class="ce-pic-actions">${cur ? `<button class="link" id="ce-crop">${t('recrop')}</button><button class="link" id="ce-rm">${t('removePhoto')}</button>` : ''}</div>
       <div class="field"><div class="field-top"><label for="ce-model">${t('carModel')}</label></div><input id="ce-model" type="text" maxlength="60" placeholder="${t('carModelPh')}" value="${esc(car ? car.model : '')}" /></div>
       <div class="field"><div class="field-top"><label for="ce-note">${t('carNote')}</label></div><input id="ce-note" type="text" maxlength="80" placeholder="${esc(t('carNotePh'))}" value="${esc(car ? car.note : '')}" /></div>
       <button class="btn primary" id="ce-save">${t('saveCar')}</button>
@@ -1548,21 +1625,32 @@
     let url = null;
     const pic = $('#ce-pic', sh);
     const fail = (err) => toast(t(/^err/.test(err && err.message) ? err.message : 'syncError'));
-    pic.onclick = () => pickImage().then((f) => {
-      photo = f;
+    // ogni foto passa dall'inquadratura (16:10, lo stesso formato dei riquadri del garage)
+    const CAR_W = Auth.cloud ? 1400 : 900;
+    let source = cur || null; // foto da cui ripartire per "Sistema inquadratura"
+    const actions = $('.ce-pic-actions', sh);
+    const show = (b) => {
+      photo = b;
       if (url) URL.revokeObjectURL(url);
-      url = URL.createObjectURL(f);
+      url = URL.createObjectURL(b);
       pic.innerHTML = `<img src="${url}" alt="" />`;
-    });
-    const rm = $('#ce-rm', sh);
-    if (rm) rm.onclick = () => { photo = null; pic.innerHTML = `${icon('camera')}<span>${t('tapPhoto')}</span>`; rm.remove(); };
+      actions.innerHTML = `<button class="link" id="ce-crop">${t('recrop')}</button><button class="link" id="ce-rm">${t('removePhoto')}</button>`;
+      bindPicActions();
+    };
+    const crop = (src) => cropImage(src, 1.6, CAR_W).then((b) => { if (b) show(b); }).catch(() => toast(t('errPhotoUpload')));
+    pic.onclick = () => pickImage().then((f) => { source = f; crop(f); });
+    function bindPicActions() {
+      const c = $('#ce-crop', sh); if (c) c.onclick = () => source && crop(source);
+      const rm = $('#ce-rm', sh);
+      if (rm) rm.onclick = () => { photo = null; source = null; pic.innerHTML = `${icon('camera')}<span>${t('tapPhoto')}</span>`; actions.innerHTML = ''; };
+    }
+    bindPicActions();
     $('#ce-save', sh).onclick = async (e) => {
       const b = e.currentTarget, model = $('#ce-model', sh).value.trim();
       if (!model) { toast(t('errCarModel')); return $('#ce-model', sh).focus(); }
       b.classList.add('loading');
       try {
-        const blob = photo ? await TougePhoto.resize(photo, Auth.cloud ? 1400 : 900, Auth.cloud ? 0.82 : 0.72) : photo;
-        await Store.saveCar({ id: car && car.id, model, note: $('#ce-note', sh).value.trim() }, blob);
+        await Store.saveCar({ id: car && car.id, model, note: $('#ce-note', sh).value.trim() }, photo);
         toast(t('carSaved')); sh.remove(); onDone();
       } catch (err) { b.classList.remove('loading'); fail(err); }
     };
@@ -2353,7 +2441,7 @@
     const ef = $('#edit-form');
     ef.name.value = user.name;
     $('#m-edit').onclick = () => (ef.hidden = !ef.hidden);
-    $('#p-photo').onclick = () => pickImage().then((f) => saveProfilePhoto('photo', f));
+    $('#p-photo').onclick = () => pickProfilePhoto();
     const rmP = $('#p-photo-rm'); if (rmP) rmP.onclick = () => saveProfilePhoto('photo', null);
     renderGarage($('#garage'));
     ef.onsubmit = async (e) => {

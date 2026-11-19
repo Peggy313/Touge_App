@@ -145,7 +145,7 @@
 
   // ── polaroid con la foto dell'auto del pilota, fissata con un pezzo di nastro
   function polaroid(th, info, id) {
-    const pw = 330, ph = 248, b = 18, bb = 64, W = pw + 2 * b, H = ph + b + bb;
+    const pw = 340, ph = 212, b = 18, bb = 64, W = pw + 2 * b, H = ph + b + bb; // 16:10 come le foto del garage
     return `<g transform="translate(70 96) rotate(-5 ${W / 2} ${H / 2})">
       <rect x="9" y="11" width="${W}" height="${H}" fill="#000" opacity=".35"/>
       <rect width="${W}" height="${H}" fill="#fbf7ee"/>
