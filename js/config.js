@@ -11,4 +11,6 @@ window.TOUGE_CONFIG = {
   supabaseAnonKey: 'sb_publishable_GPGYFRxwTkzN4vJeeQ0hEw_TUFAMesN', // chiave "publishable" (pubblica per design)
   // true solo dopo aver attivato il provider Google in Supabase (Authentication → Sign In / Providers → Google)
   googleLogin: false,
+  // email di contatto mostrata nell'informativa privacy (#privacy). Obbligatoria prima di aprire l'app al pubblico.
+  contactEmail: 'touge.app@gmail.com',
 };

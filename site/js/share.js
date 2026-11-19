@@ -21,9 +21,9 @@
     bodoni: "'Bodoni Moda', Didot, 'Times New Roman', serif",
   };
   const THEMES = {
-    retro: { art: 'retro', inLetters: 'dusk', card: '#f6efe0', band: '#f6efe0', title: '#1d1a16', shadow: RED, sub: '#7a705f', data: '#1d1a16', greet: '#1d1a16', post: '#a8322b', stampBg: RED, stampFg: CREAM, frame: '#1d1a16', logo: '#1d1a16', bars: ['#1b3a8c', '#3fa9f5', RED], storyBg: '#efe6d2', storyInk: '#1d1a16', storyMuted: '#7a705f' },
-    vapor: { art: 'vapor', inLetters: 'retro', card: '#fff4fb', band: '#2a0e5c', title: '#fff4fb', shadow: '#ff4fb0', sub: '#c9a6ff', data: '#3ff5ff', greet: '#2a0e5c', post: '#2a0e5c', stampBg: '#3ff5ff', stampFg: '#2a0e5c', frame: '#2a0e5c', logo: '#fff4fb', bars: ['#3ff5ff', '#ff9fc4', '#ff4fb0'], storyBg: '#1c0b3a', storyInk: '#fff4fb', storyMuted: '#2a0e5c', scan: true },
-    cyber: { art: 'cyber', inLetters: 'vapor', card: '#0b0c16', band: '#0b0c16', title: '#e8f7ff', shadow: '#ff2bd6', sub: '#8a93c4', data: '#00e5ff', greet: '#ff2bd6', post: '#00e5ff', stampBg: '#ff2bd6', stampFg: '#060714', frame: '#00e5ff', logo: '#e8f7ff', bars: ['#00e5ff', '#0b0c16', '#ff2bd6'], storyBg: '#05060f', storyInk: '#e8f7ff', storyMuted: '#8a93c4', scan: true, glow: true },
+    retro: { art: 'retro', letters: ['#ffcc00', '#f7931e', '#f2542d', '#e3262c'], card: '#f6efe0', band: '#f6efe0', title: '#1d1a16', shadow: RED, sub: '#7a705f', data: '#1d1a16', greet: '#1d1a16', post: '#a8322b', stampBg: RED, stampFg: CREAM, frame: '#1d1a16', logo: '#1d1a16', bars: ['#1b3a8c', '#3fa9f5', RED], storyBg: '#efe6d2', storyInk: '#1d1a16', storyMuted: '#7a705f' },
+    vapor: { art: 'vapor', letters: ['#fff4fb', '#ffe27a', '#ff9fc4', '#3ff5ff'], card: '#fff4fb', band: '#2a0e5c', title: '#fff4fb', shadow: '#ff4fb0', sub: '#c9a6ff', data: '#3ff5ff', greet: '#2a0e5c', post: '#2a0e5c', stampBg: '#3ff5ff', stampFg: '#2a0e5c', frame: '#2a0e5c', logo: '#fff4fb', bars: ['#3ff5ff', '#ff9fc4', '#ff4fb0'], storyBg: '#1c0b3a', storyInk: '#fff4fb', storyMuted: '#2a0e5c', scan: true },
+    cyber: { art: 'cyber', letters: ['#ffe27a', '#ff9fc4', '#ff2bd6', '#00e5ff'], card: '#0b0c16', band: '#0b0c16', title: '#e8f7ff', shadow: '#ff2bd6', sub: '#8a93c4', data: '#00e5ff', greet: '#ff2bd6', post: '#00e5ff', stampBg: '#ff2bd6', stampFg: '#060714', frame: '#00e5ff', logo: '#e8f7ff', bars: ['#00e5ff', '#0b0c16', '#ff2bd6'], storyBg: '#05060f', storyInk: '#e8f7ff', storyMuted: '#8a93c4', scan: true, glow: true },
   };
   let uid = 0;
 
@@ -62,7 +62,7 @@
   }
   function art(road, mood, x, y, w, h, extra) {
     const ground = mood === 'vapor' ? vaporGrid : mood === 'cyber' ? cityLights : null;
-    return window.roadArt(road, { w, h, mood, ground })
+    return window.roadArt(road, { w, h, mood, ground, clean: true })
       .replace(/<svg class="[^"]*"/, `<svg x="${x}" y="${y}" width="${w}" height="${h}"${extra || ''}`);
   }
 
@@ -130,10 +130,9 @@
     const y = 520 + size * 0.95;
     const txt = (extra, fill) => T(600, y.toFixed(0), name, { size, family: F.anton, fill, max: 1040, extra });
     const shadowCol = th.glow ? '#060714' : th.frame;
-    // dentro le lettere: il cielo (fasce del tramonto + sole) di un'altra atmosfera, schiacciato in altezza
-    const sky = window.roadArt(road, { w: AW, h: AH, mood: th.inLetters })
-      .replace(/<svg class="[^"]*"/, `<svg x="${AX}" y="520" width="${AW}" height="${Math.round(size * 1.05)}"`)
-      .replace(`viewBox="0 0 ${AW} ${AH}" preserveAspectRatio="xMidYMid slice"`, `viewBox="0 40 ${AW} 640" preserveAspectRatio="none"`);
+    // dentro le lettere solo fasce di colore piatte (niente sole o sfere): il nome deve leggersi bene
+    const top = y - size * 0.82, bh = (y - top + 4) / th.letters.length;
+    const sky = th.letters.map((c, i) => `<rect x="${AX}" y="${(top + i * bh).toFixed(1)}" width="${AW}" height="${(bh + 1).toFixed(1)}" fill="${c}"/>`).join('');
     return `
       ${T(600, 505, info.greet, { size: 78, family: F.bodoni, italic: true, fill: th.greet, max: 900,
         extra: th.glow ? ` filter="url(#${id}g)"` : ` stroke="${th.card}" stroke-width="10" stroke-linejoin="round" paint-order="stroke"` })}

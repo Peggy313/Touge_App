@@ -110,7 +110,7 @@
   // Adatta i testi delle placche alla loro area: restringe (o allarga, per la scritta in basso)
   // in orizzontale attorno al punto di ancoraggio, così la composizione resta uguale con ogni font.
   function fitPlates(root) {
-    $$('.stamp text[data-fit]', root || document).forEach((el) => {
+    $$('.stamp text[data-fit], .join-plate text[data-fit]', root || document).forEach((el) => {
       el.removeAttribute('transform');
       let w = 0;
       try { w = el.getComputedTextLength(); } catch (e) { return; }
@@ -159,6 +159,14 @@
   }
   const summit = (r) => r.wp[Math.min(1, r.wp.length - 1)];
 
+  // "oggi", "ieri", "3 giorni fa"
+  function ago(iso) {
+    const d0 = new Date(iso); d0.setHours(0, 0, 0, 0);
+    const d1 = new Date(); d1.setHours(0, 0, 0, 0);
+    const n = Math.round((d1 - d0) / 864e5);
+    return n <= 0 ? t('agoToday') : n === 1 ? t('agoYesterday') : t('agoDays').replace('{n}', n);
+  }
+
   function roadOfDay() {
     const d = new Date();
     const n = d.getFullYear() * 400 + d.getMonth() * 31 + d.getDate();
@@ -166,10 +174,16 @@
   }
 
   // ───────────── router ─────────────
-  // Flusso: splash animato all'apertura → accesso/registrazione → app.
-  // "intro" è la landing page di presentazione, raggiungibile da accesso e da Pilota.
+  // Flusso: splash animato → (prima volta) "Cos'è TOUGE?" → Esplora, anche senza account.
+  // Senza account si vede tutto; salvare (preferiti, strade guidate, recensioni, segnalazioni)
+  // e le schede Le tue strade / Pilota aprono l'invito a registrarsi, che poi completa l'azione.
   const PUBLIC = ['login', 'register', 'forgot'];
-  const OPEN = ['intro', 'reset'];
+  const BARE = ['intro', 'reset', ...PUBLIC];          // schermate senza barra delle schede
+  const OPEN = ['intro', 'reset', 'privacy'];
+  const GUEST = ['explore', 'map', 'road'];            // visibili anche senza account
+  const LOCKED = ['garage', 'profile'];                // senza account: invito a registrarsi
+  const lsGet = (k, d) => { try { const v = localStorage.getItem(k); return v == null ? d : JSON.parse(v); } catch (e) { return d; } };
+  const lsSet = (k, v) => { try { localStorage.setItem(k, JSON.stringify(v)); } catch (e) { /* ok */ } };
 
   function route() {
     const hash = location.hash.replace(/^#\/?/, '') || '';
@@ -181,31 +195,105 @@
 
     if (name === 'welcome') return go('intro'); // vecchi link
     if (!user && name === 'reset') return go('login');
-    if (!user && !PUBLIC.includes(name) && !OPEN.includes(name)) {
-      if (name === 'road') { try { sessionStorage.setItem('touge.next', hash); } catch (e) {} } // link condiviso
-      return go('intro');
+    if (!user && ![...PUBLIC, ...OPEN, ...GUEST, ...LOCKED].includes(name)) {
+      return go(lsGet('touge.guestIntro', false) ? 'explore' : 'intro'); // la prima volta: "Cos'è TOUGE?"
     }
     if (user) Store.setHadAccount();
     if (user && (PUBLIC.includes(name) || !name)) return go('explore');
 
-    const views = { intro: viewIntro, reset: viewReset, login: viewLogin, register: viewRegister, forgot: viewForgot, explore: viewExplore, map: viewMap, road: viewRoad, garage: viewGarage, profile: viewProfile };
-    const view = views[name];
-    if (!view) return go(user ? 'explore' : 'login');
+    const views = { intro: viewIntro, reset: viewReset, login: viewLogin, register: viewRegister, forgot: viewForgot, privacy: viewPrivacy, explore: viewExplore, map: viewMap, road: viewRoad, garage: viewGarage, profile: viewProfile };
+    let view = views[name];
+    if (!view) return go('explore');
+    if (!user && LOCKED.includes(name)) view = viewLocked;
 
-    const isAuth = PUBLIC.includes(name) || OPEN.includes(name);
+    const isAuth = BARE.includes(name);
     tabbar.hidden = isAuth;
     document.body.classList.toggle('auth-mode', isAuth);
     document.documentElement.classList.toggle('auth-mode', isAuth);
     document.body.classList.toggle('map-mode', name === 'map');
+    document.body.classList.toggle('guest', !user && !isAuth);
     view(param, user);
-    if (!isAuth) renderTabbar(name === 'road' ? 'explore' : name);
+    if (!isAuth) renderTabbar(name === 'road' ? 'explore' : name === 'privacy' ? 'profile' : name);
+    else renderJoinbar(false);
     if (name !== 'map') window.scrollTo(0, 0);
   }
   function go(path) { location.hash = '#' + path; }
 
   function renderTabbar(active) {
     const tabs = ['explore', 'map', 'garage', 'profile'];
-    tabbar.innerHTML = tabs.map((k) => `<a href="#${k}" class="tab ${k === active ? 'active' : ''}">${icon(k)}<span>${t(k)}</span></a>`).join('');
+    const guest = !Auth.current();
+    tabbar.innerHTML = tabs.map((k) => `<a href="#${k}" class="tab ${k === active ? 'active' : ''}"${guest && LOCKED.includes(k) ? ` data-lock="${k}"` : ''}>${icon(k)}<span>${t(k)}</span></a>`).join('');
+    $$('[data-lock]', tabbar).forEach((a) => (a.onclick = (e) => { e.preventDefault(); openJoinSheet(a.dataset.lock, null, { go: a.dataset.lock }); }));
+    renderJoinbar(guest);
+  }
+
+  // ───────────── INVITI A REGISTRARSI (modalità ospite) ─────────────
+  // barra fissa sopra le schede, sempre visibile finché non ci si registra
+  function renderJoinbar(show) {
+    let bar = $('#joinbar');
+    if (!show) { if (bar) bar.remove(); return; }
+    if (!bar) { bar = document.createElement('div'); bar.id = 'joinbar'; bar.className = 'joinbar'; document.body.appendChild(bar); }
+    bar.innerHTML = `<span class="jb-k" aria-hidden="true">峠</span><span class="jb-t">${t('joinBar')}</span><button class="jb-btn" id="jb-go">${t('register')}</button>`;
+    $('#jb-go', bar).onclick = () => startJoin();
+  }
+  // porta alla registrazione ricordando dove si era e cosa si voleva fare
+  function startJoin(pending, toLogin) {
+    try {
+      const h = location.hash.replace(/^#\/?/, '');
+      if (h && !BARE.includes(h)) sessionStorage.setItem('touge.next', h); else sessionStorage.removeItem('touge.next');
+      if (pending) sessionStorage.setItem('touge.pending', JSON.stringify(pending)); else sessionStorage.removeItem('touge.pending');
+    } catch (e) { /* ok */ }
+    go(toLogin ? 'login' : 'register');
+  }
+  // foglio dal basso con la placca: "Crea la tua licenza pilota"
+  function openJoinSheet(reason, r, pending) {
+    const keys = { fav: 'joinFav', driven: 'joinDriven', review: 'joinReview', report: 'joinReport', flag: 'joinFlag', garage: 'joinGarage', profile: 'joinProfile', remind: 'joinRemind' };
+    const pr = r || roadOfDay();
+    const seen = lsGet('touge.guestViews', []).length;
+    const sh = openSheet(`
+      <div class="join">
+        <div class="join-plate">${drivenPlate(pr)}</div>
+        <h2 class="h2">${t('joinTitle')}</h2>
+        <p class="join-text">${esc(t(keys[reason] || 'joinGarage').replace('{n}', seen))}</p>
+        <button class="btn primary" id="j-reg">${t('joinCta')}</button>
+        <div class="join-foot"><button class="link" id="j-log">${t('yesAccount')} <b>${t('login')}</b></button><button class="link muted" data-close>${t('notNow')}</button></div>
+      </div>`);
+    sh.classList.add('join-sheet');
+    fitPlates(sh);
+    $('#j-reg', sh).onclick = () => { sh.remove(); startJoin(pending); };
+    $('#j-log', sh).onclick = () => { sh.remove(); startJoin(pending, true); };
+  }
+  // schermata delle schede bloccate se ci si arriva da un link
+  function viewLocked() {
+    const k = location.hash.slice(1);
+    app.innerHTML = `
+      <header class="top"><h1 class="h1">${t(k)}</h1></header>
+      <section class="locked">
+        <div class="join-plate">${drivenPlate(roadOfDay())}</div>
+        <h2 class="h2">${t('joinTitle')}</h2>
+        <p class="join-text">${t(k === 'profile' ? 'joinProfile' : 'joinGarage')}</p>
+        <button class="btn primary" id="l-reg">${t('joinCta')}</button>
+        <button class="link" id="l-log">${t('yesAccount')} <b>${t('login')}</b></button>
+      </section>`;
+    fitPlates(app);
+    $('#l-reg').onclick = () => startJoin({ go: k });
+    $('#l-log').onclick = () => startJoin({ go: k }, true);
+  }
+
+  // ───────────── PRIVACY ─────────────
+  function viewPrivacy() {
+    const P = window.PRIVACY || {};
+    const email = (window.TOUGE_CONFIG && window.TOUGE_CONFIG.contactEmail) || '';
+    const contact = email ? `<a class="link" href="mailto:${esc(email)}">${esc(email)}</a>` : `<mark>${t('privacyNoEmail')}</mark>`;
+    app.innerHTML = `
+      <section class="doc">
+        <header class="top doc-top">
+          <button class="round-btn back-inline" id="doc-back" aria-label="back">${icon('back')}</button>
+          <h1 class="h1">${t('privacy')}</h1>
+        </header>
+        <article class="doc-body">${(P[lang] || P.it || '').replace(/\{EMAIL\}/g, contact)}</article>
+      </section>`;
+    $('#doc-back').onclick = () => (history.length > 1 ? history.back() : go('explore'));
   }
 
   // ───────────── AUTH ─────────────
@@ -294,10 +382,13 @@
           <div class="intro-body" id="in-body" aria-live="polite"></div>
           <div class="dots" id="in-dots">${slides.map(() => '<i></i>').join('')}</div>
           <button class="btn primary" id="in-next"></button>
+          ${user ? '' : `<button class="link intro-guest" id="in-guest">${t('exploreFirst')} →</button>`}
         </div>
       </section>`;
-    // chi non è dentro arriva sempre alla registrazione; l'accesso è un link secondario
-    const finish = () => { if (user) Store.setIntroSeen(); go(user ? 'explore' : 'register'); };
+    // in fondo: chi non è dentro va alla registrazione (o esplora senza account con il link sotto)
+    lsSet('touge.guestIntro', true);
+    const finish = () => { if (user) { Store.setIntroSeen(); go('explore'); } else startJoin(); };
+    if (!user) $('#in-guest').onclick = () => go('explore');
     const render = () => {
       const s = slides[i];
       $('#in-body').innerHTML = `
@@ -311,7 +402,7 @@
       $('#in-next').textContent = i === slides.length - 1 ? (user ? t('startDriving') : t('createAccount')) : t('next');
     };
     $('#in-next').onclick = () => { if (i < slides.length - 1) { i++; render(); } else finish(); };
-    $('#in-skip').onclick = finish;
+    $('#in-skip').onclick = () => go('explore');
     render();
   }
 
@@ -364,7 +455,7 @@
       field('email', t('email'), 'email', 'nome@email.it', 'email') +
       field('password', t('password'), 'password', '••••••', 'current-password', `<a href="#forgot" class="link">${t('forgot')}</a>`) +
       `<button class="btn primary" type="submit">${t('login')}</button>`,
-      `<span>${t('noAccount')} <a href="#register" class="link">${t('register')}</a></span>`, { social: true });
+      `<span>${t('noAccount')} <a href="#register" class="link">${t('register')}</a></span><a href="#explore" class="link muted">${t('exploreFirst')} →</a>`, { social: true });
     f.onsubmit = async (e) => {
       e.preventDefault();
       const d = Object.fromEntries(new FormData(f));
@@ -378,10 +469,18 @@
   // pulsante "in corso" durante le chiamate al server
   function busy(form, on) { const b = form.querySelector('button[type=submit]'); if (b) { b.disabled = on; b.classList.toggle('loading', on); } }
   // dopo l'accesso torna alla pagina che si voleva aprire (es. link condiviso a una strada)
+  // e completa l'azione che aveva aperto l'invito (♥ o "Strada guidata")
   function goAfterAuth() {
-    let next = null;
-    try { next = sessionStorage.getItem('touge.next'); sessionStorage.removeItem('touge.next'); } catch (e) {}
-    go(next || 'explore');
+    let next = null, pending = null;
+    try {
+      next = sessionStorage.getItem('touge.next'); pending = JSON.parse(sessionStorage.getItem('touge.pending') || 'null');
+      sessionStorage.removeItem('touge.next'); sessionStorage.removeItem('touge.pending');
+    } catch (e) { /* ok */ }
+    if (pending && pending.road && byId[pending.road]) {
+      if (pending.act === 'fav' && !Store.isFav(pending.road)) { Store.toggleFav(pending.road); toast('♥ ' + byId[pending.road].name); }
+      if (pending.act === 'driven' && !Store.isDriven(pending.road)) { Store.toggleDriven(pending.road); toast('🏁 ' + byId[pending.road].name); }
+    }
+    go((pending && pending.go) || next || 'explore');
   }
 
   function viewRegister() {
@@ -391,7 +490,7 @@
       `<div class="field-row">${field('password', t('password'), 'password', '••••••', 'new-password')}${field('password2', t('confirmShort'), 'password', '••••••', 'new-password')}</div>` +
       `<label class="check"><input type="checkbox" name="terms" id="f-terms" /><span>${t('acceptTerms')}</span></label>
        <button class="btn primary" type="submit">${t('register')}</button>`,
-      `<span>${t('yesAccount')} <a href="#login" class="link">${t('login')}</a></span>`, { social: true, full: true });
+      `<span>${t('yesAccount')} <a href="#login" class="link">${t('login')}</a></span><a href="#explore" class="link muted">${t('exploreFirst')} →</a>`, { social: true, full: true });
     f.onsubmit = async (e) => {
       e.preventDefault();
       const d = Object.fromEntries(new FormData(f));
@@ -526,9 +625,12 @@
 
   function roadCard(r) {
     const fav = Store.isFav(r.id), dr = Store.isDriven(r.id), rt = Store.rating(r.id);
+    const st = Store.roadStatus(r.id);
+    const badge = st && (st.by === 'official' || Date.now() - Date.parse(st.at) < 7 * 864e5)
+      ? `<span class="st-badge ${st.status}">${t(st.status === 'open' ? 'stOpen' : 'stClosed')}</span>` : '';
     return `
       <article class="card ${dr ? 'is-driven' : ''}" data-go="${r.id}">
-        <div class="card-art">${roadArt(r, { w: 320, h: 190, num: r.no })}
+        <div class="card-art">${roadArt(r, { w: 320, h: 190, num: r.no })}${badge}
           <span class="card-alt"><b>${fmt(r.alt)}</b><small>m</small></span>
           ${dr ? `<span class="stamp">${drivenPlate(r)}</span>` : ''}
           <button class="fav-btn ${fav ? 'on' : ''}" data-fav="${r.id}" aria-label="${t('favorite')}">${icon('heart')}</button>
@@ -549,6 +651,7 @@
     fitPlates(root);
     $$('[data-fav]', root).forEach((b) => (b.onclick = (e) => {
       e.stopPropagation();
+      if (!Auth.current()) return openJoinSheet('fav', byId[b.dataset.fav], { road: b.dataset.fav, act: 'fav' });
       const on = Store.toggleFav(b.dataset.fav);
       b.classList.toggle('on', on);
       toast(on ? '♥ ' + byId[b.dataset.fav].name : t('removeFav') + ' ✕');
@@ -560,8 +663,8 @@
     const rod = roadOfDay();
     app.innerHTML = `
       <header class="top">
-        <div><p class="muted small">${t('exploreSub')}</p><h1 class="h1">${t('hello')}, ${esc(user.name)}</h1></div>
-        <a href="#profile" aria-label="${t('profile')}">${avatar(user, 44)}</a>
+        <div><p class="muted small">${t('exploreSub')}</p><h1 class="h1">${user ? `${t('hello')}, ${esc(user.name)}` : t('helloGuest')}</h1></div>
+        ${user ? `<a href="#profile" aria-label="${t('profile')}">${avatar(user, 44)}</a>` : `<button class="enter-btn" id="enter">${t('enter')}</button>`}
       </header>
       <div class="search-row">
         <label class="search">${icon('search')}<input id="q" type="search" placeholder="${t('search')}" value="${esc(filters.q)}" /></label>
@@ -594,6 +697,7 @@
     };
     renderList();
     $('.featured').onclick = () => go('road-' + rod.id);
+    if (!user) $('#enter').onclick = () => startJoin();
 
     $('#q').oninput = (e) => { filters.q = e.target.value; renderList(); };
     filterChips($('#chips'), renderList);
@@ -771,6 +875,8 @@
           <button class="act share story" id="a-share-story">${icon('story')}<span>${t('sharePlate')}</span></button>
         </div>
 
+        <section class="status" id="road-status" aria-live="polite"></section>
+
         <div class="stats">
           <div class="stat">${icon('mountain')}<b>${fmt(r.alt)}<small> m</small></b><span>${t('altitude')}</span></div>
           <div class="stat">${icon('road')}<b>${r.km}<small> km</small></b><span>${t('length')}</span></div>
@@ -788,11 +894,11 @@
           <p class="muted small" id="route-note">${t('routeLoading')}</p>
 
           <h2 class="h2">${t('reviews')} <span class="muted small" id="rv-sum"></span></h2>
-          <form class="review-form" id="rv-form">
+          ${user ? `<form class="review-form" id="rv-form">
             <div class="row between"><span class="small">${t('yourRating')}</span><span class="stars input" id="rv-stars">${[1, 2, 3, 4, 5].map((i) => `<button type="button" data-v="${i}" aria-label="${i}"><svg viewBox="0 0 24 24">${I.star}</svg></button>`).join('')}</span></div>
             <textarea id="rv-text" rows="3" maxlength="500" placeholder="${t('reviewPh')}"></textarea>
-            <div class="row between"><span class="muted xs">${t('reviewLocal')}</span><button class="btn primary sm" type="submit">${t('publish')}</button></div>
-          </form>
+            <div class="row between"><span class="muted xs">${Auth.cloud ? t('reviewPublic') : t('reviewLocal')}</span><button class="btn primary sm" type="submit">${t('publish')}</button></div>
+          </form>` : `<button class="btn ghost rv-guest" id="rv-guest">${icon('star')} ${t('writeReview')}</button>`}
           <div id="rv-list"></div>
 
           <h2 class="h2">${t('nearby')}</h2>
@@ -807,11 +913,13 @@
 
     $$('[data-go]').forEach((c) => (c.onclick = () => go('road-' + c.dataset.go)));
     $('#a-fav').onclick = (e) => {
+      if (!user) return openJoinSheet('fav', r, { road: r.id, act: 'fav' });
       const on = Store.toggleFav(r.id);
       e.currentTarget.classList.toggle('on', on);
       e.currentTarget.querySelector('span').textContent = on ? t('removeFav') : t('addFav');
     };
     $('#a-drv').onclick = (e) => {
+      if (!user) return openJoinSheet('driven', r, { road: r.id, act: 'driven' });
       const on = Store.toggleDriven(r.id);
       $('#hero-plate').innerHTML = (on ? CHK : '') + 'No.' + r.no;
       e.currentTarget.classList.toggle('on', on);
@@ -821,6 +929,40 @@
     $('#a-share-road').onclick = () => shareRoad(r);
     // la storia si può condividere sempre: con la placca "Strada guidata" se l'hai percorsa, "Strada da guidare" altrimenti
     $('#a-share-story').onclick = () => openStorySheet(r);
+
+    // stato della strada: segnalazioni dei piloti + conferma ufficiale
+    const renderStatus = () => {
+      const box = $('#road-status');
+      if (!box) return;
+      const st = Store.roadStatus(r.id), mine = user ? Store.myRoadReport(r.id) : null;
+      const who = st && (st.by === 'official'
+        ? t('stOfficial') + (st.source ? ' · ' + esc(st.source) : '')
+        : t(st.count === 1 ? 'stPilot1' : 'stPilots').replace('{n}', st.count));
+      box.className = 'status ' + (st ? st.status : 'none');
+      box.innerHTML = `
+        <div class="st-head">
+          <span class="st-dot" aria-hidden="true"></span>
+          <div class="st-txt">
+            <b>${st ? t(st.status === 'open' ? 'stOpen' : 'stClosed') : t('stUnknown')}</b>
+            <span>${st ? `${who} · ${ago(st.at)}` : (r.closure ? `${t('closure')} ${t('typical')}: ${esc(r.closure)}` : t('openAllYear'))}</span>
+          </div>
+        </div>
+        ${st && st.note ? `<p class="st-note">${esc(st.note)}</p>` : ''}
+        <div class="st-ask">
+          <span>${mine ? t('stYouSaid').replace('{s}', t(mine === 'open' ? 'stOpen' : 'stClosed').toLowerCase()) : t('stAsk')}</span>
+          <div class="st-btns">
+            <button class="st-btn open ${mine === 'open' ? 'on' : ''}" data-st="open">${t('stOpenBtn')}</button>
+            <button class="st-btn closed ${mine === 'closed' ? 'on' : ''}" data-st="closed">${t('stClosedBtn')}</button>
+          </div>
+        </div>`;
+      $$('[data-st]', box).forEach((b) => (b.onclick = async () => {
+        if (!Auth.current()) return openJoinSheet('report', r);
+        b.classList.add('loading');
+        try { await Store.reportRoad(r.id, b.dataset.st); toast(t('stThanks')); renderStatus(); }
+        catch (err) { b.classList.remove('loading'); toast(t(err.message === 'errRateLimit' ? 'errRateLimit' : 'syncError')); }
+      }));
+    };
+    renderStatus();
 
     // recensioni
     let rating = 0;
@@ -833,14 +975,34 @@
         <div class="review">
           <div class="row between"><div><b>${esc(v.user)}</b> <span class="muted xs">${esc(v.car || '')}</span></div>${stars(v.rating, 'sm')}</div>
           <p>${esc(v.text)}</p>
-          <div class="row between"><span class="muted xs">${v.date}</span>${v.mine ? `<button class="link xs" data-del="${v.id}">${t('deleteReview')}</button>` : ''}</div>
+          <div class="row between"><span class="muted xs">${v.date}</span>${v.mine
+            ? `<button class="link xs" data-del="${v.id}">${t('deleteReview')}</button>`
+            : `<button class="link xs rv-flag" data-flag="${v.id}">${t('reportReview')}</button>`}</div>
         </div>`).join('') : `<p class="empty">${t('noReviews')}</p>`;
       $$('[data-del]').forEach((b) => (b.onclick = () => { Store.deleteReview(r.id, b.dataset.del); renderReviews(); }));
+      // segnala: due tocchi (il primo chiede conferma)
+      $$('[data-flag]').forEach((b) => (b.onclick = async () => {
+        if (!Auth.current()) return openJoinSheet('flag', r);
+        if (!b.classList.contains('armed')) { b.classList.add('armed'); b.textContent = t('confirmReport'); setTimeout(() => { b.classList.remove('armed'); b.textContent = t('reportReview'); }, 4000); return; }
+        try { await Store.reportReview(r.id, b.dataset.flag); toast(t('reported')); renderReviews(); }
+        catch (err) { toast(t('syncError')); }
+      }));
     };
     renderReviews();
     // online: scarica le recensioni aggiornate di tutti i piloti e ridisegna
     Store.loadReviews(r.id).then(() => { if ($('#rv-list') && location.hash === '#road-' + r.id) renderReviews(); });
-    $('#rv-form').onsubmit = (e) => {
+
+    // senza account: invito al posto del modulo + promemoria dopo 3 strade viste
+    if (!user) {
+      $('#rv-guest').onclick = () => openJoinSheet('review', r);
+      const views = lsGet('touge.guestViews', []);
+      if (!views.includes(r.id)) { views.push(r.id); lsSet('touge.guestViews', views.slice(-50)); }
+      if (views.length >= 3 && !lsGet('touge.reminded', false)) {
+        lsSet('touge.reminded', true);
+        setTimeout(() => { if (location.hash === '#road-' + r.id && !Auth.current()) openJoinSheet('remind', r); }, 1800);
+      }
+    }
+    if (user) $('#rv-form').onsubmit = (e) => {
       e.preventDefault();
       const text = $('#rv-text').value;
       if (!rating || text.trim().length < 5) return toast(t('errReview'));
@@ -1107,6 +1269,7 @@
       <div class="menu">
         <div class="menu-item">${icon('globe')}<span>${t('language')}</span>${langSwitch()}</div>
         <a class="menu-item" href="#intro">${icon('explore')}<span>${t('whatIsTouge')}</span></a>
+        <a class="menu-item" href="#privacy">${icon('check')}<span>${t('privacy')}</span></a>
         <button class="menu-item" id="m-edit">${icon('edit')}<span>${t('editProfile')}</span></button>
         <form class="edit-form" id="edit-form" hidden>
           ${field('name', t('name'), 'text', t('namePh'))}
@@ -1128,12 +1291,12 @@
       await Auth.update({ name: ef.name.value.trim(), car: ef.car.value.trim() });
       toast(t('saved')); route();
     };
-    $('#m-logout').onclick = async () => { await Auth.logout(); go('login'); };
+    $('#m-logout').onclick = async () => { await Auth.logout(); go('explore'); };
     // conferma in due tocchi dentro la pagina (confirm() non è disponibile ovunque)
     let armed = null;
     $('#m-del').onclick = (e) => {
       const btn = e.currentTarget;
-      if (armed) { clearTimeout(armed); armed = null; Auth.deleteAccount().then(() => go('login'), () => toast(t('errNetwork'))); return; }
+      if (armed) { clearTimeout(armed); armed = null; Auth.deleteAccount().then(() => go('explore'), () => toast(t('errNetwork'))); return; }
       btn.querySelector('span').textContent = t('confirmDeleteTap');
       btn.classList.add('armed');
       armed = setTimeout(() => { armed = null; btn.classList.remove('armed'); btn.querySelector('span').textContent = t('deleteAccount'); }, 4000);

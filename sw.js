@@ -1,9 +1,9 @@
 /* TOUGE App — service worker: l'app si apre anche offline (file dell'app in cache),
  * sempre "rete prima" così gli aggiornamenti arrivano subito. Supabase e mappe non vengono messi in cache. */
-const CACHE = 'touge-v3';
+const CACHE = 'touge-v4';
 const SHELL = [
   './', './index.html', './manifest.json', './css/style.css',
-  './js/config.js', './js/data.js', './js/i18n.js', './js/store.js', './js/art.js', './js/share.js', './js/app.js',
+  './js/config.js', './js/data.js', './js/i18n.js', './js/store.js', './js/art.js', './js/share.js', './js/privacy.js', './js/app.js',
   './data/routes.json', './icons/icon.svg', './icons/icon-192.png', './icons/icon-512.png', './icons/apple-touch-icon.png',
 ];
 

@@ -45,6 +45,38 @@
   }
   const norm = (email) => String(email || '').trim().toLowerCase();
   const emit = (name, detail) => window.dispatchEvent(new CustomEvent(name, { detail }));
+  const today = () => new Date().toISOString().slice(0, 10);
+
+  // Stato di una strada: segnalazioni dei piloti (ultimi 14 giorni) + conferma ufficiale.
+  // Vale la maggioranza dei 3 giorni attorno alla segnalazione più recente; a parità, l'ultima.
+  // La conferma ufficiale vince se è più recente delle segnalazioni.
+  const DAY = 864e5;
+  function computeStatus(list, off) {
+    const now = Date.now();
+    const recent = (list || []).filter((r) => now - Date.parse(r.at) < 14 * DAY).sort((a, b) => Date.parse(b.at) - Date.parse(a.at));
+    let pilots = null;
+    if (recent.length) {
+      const newest = Date.parse(recent[0].at);
+      const win = recent.filter((r) => newest - Date.parse(r.at) < 3 * DAY);
+      const open = win.filter((r) => r.status === 'open').length, closed = win.length - open;
+      const status = open === closed ? recent[0].status : open > closed ? 'open' : 'closed';
+      pilots = { by: 'pilots', status, at: recent[0].at, count: status === 'open' ? open : closed };
+    }
+    if (off && (!pilots || Date.parse(off.at) >= Date.parse(pilots.at))) {
+      return { by: 'official', status: off.status, at: off.at, note: off.note || '', source: off.source || '' };
+    }
+    return pilots;
+  }
+  // la mia segnalazione di oggi per ogni strada (per mostrare "hai segnalato…")
+  function myRoadReports(who) { const all = read('touge.myroad', {}); const mine = all[who] || {}; return { all, mine }; }
+  function rememberRoadReport(who, roadId, status) {
+    const { all, mine } = myRoadReports(who);
+    mine[roadId] = { status, day: today() }; all[who] = mine; write('touge.myroad', all);
+  }
+  function myRoadReport(who, roadId) {
+    const x = myRoadReports(who).mine[roadId];
+    return x && x.day === today() ? x.status : null;
+  }
 
   // Impostazioni comuni a entrambe le modalità
   const Common = {
@@ -149,9 +181,28 @@
       },
       reviews(roadId) {
         const me = Auth.current();
+        const hidden = read('touge.reported', []);
         const local = (read(K.reviews, {})[roadId] || []).map((r) => Object.assign({ mine: !!me && r.email === me.email }, r));
-        const seed = (window.SEED_REVIEWS[roadId] || []).map((r) => Object.assign({ seed: true }, r));
-        return [...local, ...seed].sort((a, b) => (b.date > a.date ? 1 : -1));
+        const seed = (window.SEED_REVIEWS[roadId] || []).map((r, i) => Object.assign({ seed: true, id: 'seed-' + roadId + '-' + i }, r));
+        return [...local, ...seed].filter((r) => !hidden.includes(r.id)).sort((a, b) => (b.date > a.date ? 1 : -1));
+      },
+      async reportReview(roadId, reviewId) {
+        const hidden = read('touge.reported', []);
+        if (!hidden.includes(reviewId)) { hidden.push(reviewId); write('touge.reported', hidden); }
+      },
+      roadStatus(roadId) {
+        const all = read('touge.roadreports', {});
+        return computeStatus(all[roadId] || [], null);
+      },
+      myRoadReport(roadId) { const me = Auth.current(); return me ? myRoadReport(me.email, roadId) : null; },
+      async reportRoad(roadId, status) {
+        const me = Auth.current();
+        if (!me) throw new Error('auth');
+        const all = read('touge.roadreports', {});
+        const list = (all[roadId] || []).filter((r) => !(r.email === me.email && r.at.slice(0, 10) === today()));
+        list.unshift({ status, at: new Date().toISOString(), email: me.email });
+        all[roadId] = list.slice(0, 50); write('touge.roadreports', all);
+        rememberRoadReport(me.email, roadId, status);
       },
       loadReviews: async (roadId) => Store.reviews(roadId),
       addReview(roadId, { rating, text }) {
@@ -189,6 +240,22 @@
     let C = empty();
     const reviewsByRoad = {};   // road_id → [recensioni]
     const ratings = {};         // road_id → { sum, count }
+    const roadReports = {};     // road_id → [{ status, at }] ultimi 14 giorni
+    const official = {};        // road_id → { status, note, source, at } (tabella road_status)
+    let reported = new Set();   // recensioni che ho segnalato (nascoste per me)
+
+    async function loadStatuses() {
+      const since = new Date(Date.now() - 14 * DAY).toISOString();
+      const [a, b] = await Promise.all([
+        sb.from('road_reports').select('road_id, status, created_at').gte('created_at', since).order('created_at', { ascending: false }).limit(5000),
+        sb.from('road_status').select('road_id, status, note, source, updated_at'),
+      ]);
+      if (!a.error) {
+        Object.keys(roadReports).forEach((k) => delete roadReports[k]);
+        a.data.forEach((r) => (roadReports[r.road_id] = roadReports[r.road_id] || []).push({ status: r.status, at: r.created_at }));
+      }
+      if (!b.error) b.data.forEach((r) => (official[r.road_id] = { status: r.status, note: r.note, source: r.source, at: r.updated_at }));
+    }
 
     const fail = (where) => (err) => { console.warn('[TOUGE sync]', where, err); emit('touge:sync-error', where); };
     const run = (where, p) => p.then((res) => { if (res && res.error) fail(where)(res.error); return res; }, fail(where));
@@ -238,6 +305,8 @@
       (d.data || []).forEach((r) => (C.driven[r.road_id] = r.driven_at));
       C.favorites = (f.data || []).map((r) => r.road_id);
       C.myReviews = m.count || 0;
+      sb.from('review_reports').select('review_id').eq('user_id', user.id)
+        .then((res) => { if (res && !res.error) reported = new Set(res.data.map((x) => x.review_id)); }, () => {});
 
       const legacy = read(K.data(norm(user.email)), null);
       if (legacy && !legacy.migrated && (Object.keys(legacy.driven || {}).length || (legacy.favorites || []).length)) {
@@ -261,7 +330,7 @@
       async init() {
         sb.auth.onAuthStateChange((event) => { if (event === 'PASSWORD_RECOVERY') emit('touge:recovery'); });
         const { data } = await sb.auth.getSession();
-        await Promise.all([data.session ? loadUser(data.session.user) : null, loadRatings()]);
+        await Promise.all([data.session ? loadUser(data.session.user) : null, loadRatings(), loadStatuses().catch(() => {})]);
       },
       current() {
         if (!C.user || !C.profile) return null;
@@ -300,7 +369,7 @@
         Object.assign(C.profile, fields);
         await run('profile', sb.from('profiles').update(fields).eq('id', C.user.id));
       },
-      async logout() { C = empty(); await sb.auth.signOut(); },
+      async logout() { C = empty(); reported = new Set(); await sb.auth.signOut(); },
       async deleteAccount() {
         const { error } = await sb.rpc('delete_my_account');
         if (error) { fail('delete')(error); throw new Error('errNetwork'); }
@@ -338,7 +407,28 @@
         run('driven', sb.from('driven').upsert({ user_id: C.user.id, road_id: id, driven_at: C.driven[id] }));
         return true;
       },
-      reviews(roadId) { return (reviewsByRoad[roadId] || []).map((r) => Object.assign({}, r, { mine: r.mine })); },
+      reviews(roadId) { return (reviewsByRoad[roadId] || []).filter((r) => !reported.has(r.id)).map((r) => Object.assign({}, r, { mine: r.mine })); },
+      // segnala una recensione: sparisce subito per me, con 3 segnalazioni si nasconde per tutti
+      async reportReview(roadId, reviewId) {
+        if (!C.user) throw new Error('auth');
+        reported.add(reviewId);
+        const res = await sb.from('review_reports').insert({ review_id: reviewId, user_id: C.user.id });
+        if (res.error && res.error.code !== '23505') { reported.delete(reviewId); fail('report')(res.error); throw new Error('errNetwork'); }
+      },
+      roadStatus(roadId) { return computeStatus(roadReports[roadId], official[roadId]); },
+      myRoadReport(roadId) { return C.user ? myRoadReport(C.user.id, roadId) : null; },
+      async reportRoad(roadId, status) {
+        if (!C.user) throw new Error('auth');
+        const { error } = await sb.rpc('report_road', { p_road: roadId, p_status: status });
+        if (error) { fail('road-report')(error); throw new Error(/too_many/.test(error.message || '') ? 'errRateLimit' : 'errNetwork'); }
+        // aggiorna la cache: sostituisce la mia segnalazione di oggi
+        const prev = myRoadReport(C.user.id, roadId);
+        const list = roadReports[roadId] || [];
+        if (prev) { const i = list.findIndex((r) => r.status === prev && r.at.slice(0, 10) === today()); if (i >= 0) list.splice(i, 1); }
+        list.unshift({ status, at: new Date().toISOString() });
+        roadReports[roadId] = list;
+        rememberRoadReport(C.user.id, roadId, status);
+      },
       async loadReviews(roadId) {
         const { data, error } = await sb.from('reviews').select('*').eq('road_id', roadId).order('created_at', { ascending: false }).limit(100);
         if (!error) {

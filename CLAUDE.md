@@ -25,7 +25,10 @@ HTML/CSS/JS puro, nessun bundler. Script caricati in ordine in `index.html`:
 | `data/routes.json` | tracciati stradali reali pre-calcolati (OSRM) per ogni strada |
 | `sw.js`, `manifest.json`, `icons/` | PWA (cache "rete prima") e icone PNG |
 | `artifact.html` | versione per Artifact claude.ai (V1 demo, modalità locale, mappe vettoriali) |
+| `js/privacy.js` | testo dell'informativa privacy IT/EN (`window.PRIVACY`) |
 | `supabase/schema.sql`, `supabase/grants.sql` | tabelle, RLS, trigger profilo, `delete_my_account()`, GRANT |
+| `supabase/v3.sql` | V3: recensioni (autore dal profilo, anti-spam, `hidden`, `review_reports`), colonne profilo modificabili, `road_reports` + `report_road()`, `road_status` |
+| `.gitignore`, `GITHUB-DESKTOP.md` | pubblicazione con GitHub Desktop (commit + push) |
 | `tools/build-data.ps1` | rigenera `data/routes.json` (+ europe.json, leaflet.css) da OSRM |
 | `tools/build-site.ps1` | crea la cartella `site/` pulita per GitHub Pages |
 | `serve.ps1` + `.claude/launch.json` | server locale su http://localhost:5173 (preview "touge") |
@@ -39,9 +42,13 @@ HTML/CSS/JS puro, nessun bundler. Script caricati in ordine in `index.html`:
 
 ## Flusso e UX decisi
 - Apertura animata (strada che si disegna, sole che sorge, TOUGE che si compone) → **si entra solo con un tocco**.
-- Utente non loggato: apertura → **"Cos'è TOUGE?"** (scheda centrata, AVANTI su 3 step: Scopri / Pianifica / Colleziona) → **registrazione a tutto schermo** (sempre, anche se il dispositivo ha già avuto un account) → app. L'accesso ("Bentornato") è secondario, via link.
-- Utente loggato: apertura → Esplora. La sessione resta ricordata.
-- Link condiviso a una strada da non loggato: dopo l'accesso si apre quella strada (`sessionStorage touge.next`).
+- **Modalità ospite (V3)**: senza account si vede tutto (Esplora, Mappa, pagina strada, recensioni, cartolina). Prima apertura: "Cos'è TOUGE?" (in fondo "Crea il tuo account" + link "Esplora senza account"), poi Esplora (`localStorage touge.guestIntro`).
+- Inviti a registrarsi per l'ospite: barra gialla fissa sopra le tab (`#joinbar`, `body.guest` → `--joinbar: 46px`), bottone ENTRA in Esplora, foglio con la placca (`openJoinSheet`) al tocco di ♥ / Strada guidata / Recensisci / Segnala / È aperta-chiusa / tab Le tue strade e Pilota, promemoria una volta dopo 3 strade viste. Dopo la registrazione si torna dov'eri (`sessionStorage touge.next`) e l'azione ♥ / guidata viene completata (`touge.pending`).
+- Utente loggato: apertura → Esplora. La sessione resta ricordata. Logout ed elimina account → Esplora da ospite.
+- **Privacy** `#privacy` (testo in `js/privacy.js`, titolare "Progetto TOUGE", email da `contactEmail` in `config.js`): link nella registrazione (checkbox "ho letto… e ho almeno 14 anni") e in Pilota.
+- **Stato strada** (box sotto i bottoni nella pagina strada + badge Aperta/Chiusa sulle card): segnalazioni dei piloti "È aperta / È chiusa" (una al giorno per strada, maggioranza nei 3 giorni attorno all'ultima, validità 14 giorni; badge solo se < 7 giorni) + conferma ufficiale dalla tabella `road_status` che compila l'utente su Supabase (vince se più recente).
+- Recensioni: "Segnala" (due tocchi) → nascosta per chi segnala, per tutti dopo 3 segnalazioni. Autore e auto presi dal profilo lato database.
+- Testi: **minimo 13 px** ovunque (eccezione: testo dentro i segnaposto SVG della mappa).
 - Tab: **Esplora · Mappa · Le tue strade · Pilota**.
 - Esplora: chip filtro **Paese, Difficoltà, Lunghezza, Tornanti, Altitudine** (multi-selezione in un foglio dal basso) + toggle "Aperte tutto l'anno", "Senza pedaggio", chip rosso "Azzera". Con filtri o ricerca attivi sparisce la Strada del giorno e il titolo diventa "Risultati". Il bottone con i cursori serve solo all'ordinamento. Stessi chip nella Mappa.
 - Bottone pagina strada: "Strada da guidare" ↔ "Strada guidata ✓". "Invia link" (link alla strada) e "Condividi la strada" (**sempre attiva**: placca "Strada guidata" se guidata, "Strada da guidare" altrimenti) → foglio "La tua cartolina": stile in alto (Retrò · Vaporwave · Cyberpunk, anche scorrendo sull'anteprima), chip elementi sotto, bottoni **Instagram** (foglio di condivisione con la storia 9:16, preparata in anticipo perché iOS vuole `navigator.share` subito al tocco) e **Salva ▾** → PNG / SVG. Scelte ricordate in `localStorage touge.postcard`.
@@ -58,7 +65,9 @@ HTML/CSS/JS puro, nessun bundler. Script caricati in ordine in `index.html`:
 ## Pubblicazione
 - **Online (V2)**: https://peggy313.github.io/Touge_App/ — repo pubblico `Peggy313/Touge_App`, Pages da `main` / root. L'utente carica i file dal sito GitHub (Add file → Upload files → Commit) nelle cartelle giuste; la root del repo contiene l'intero progetto.
 - **Supabase**: progetto `lvjifupcmfbxmzjtpvry` (eu-west-1). Tabelle `profiles, driven, favorites, reviews` con RLS. I progetti nuovi richiedono anche i **GRANT** (`grants.sql`). "Confirm email" è **disattivato** (il servizio email gratuito è limitato). Mai chiedere/usare la chiave `service_role`; il *client secret* di Google va solo su Supabase.
-- **V1 demo**: Artifact https://claude.ai/artifact/VYZd3sCTigt1S4JJv3AgQB (pubblicato da `artifact.html`, etichetta "V1"); lì i servizi esterni sono bloccati, quindi gira in modalità locale.
+- **Ultima versione su Claude (fissata)**: Artifact "TOUGE App V2" https://claude.ai/artifact/8wBnk5Qdfo3AvLa4E5TNTV, pubblicato da `artifact.html` + `css/`, `js/` (senza config.js), `data/`. Lì i servizi esterni sono bloccati, quindi gira in modalità locale. Dopo ogni modifica ripubblicarlo (stesso file → stesso link).
+- **V1 demo** (congelata, non più fissata): https://claude.ai/artifact/VYZd3sCTigt1S4JJv3AgQB.
+- Verifica locale: se la porta 5173 è occupata da un'altra chat, usare la preview "touge-5174".
 - Prima di dare i file da caricare: `tools\build-site.ps1`; verificare in locale con la preview "touge".
 
 ## In sospeso / idee
