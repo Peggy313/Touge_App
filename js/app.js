@@ -291,8 +291,8 @@
           <button class="btn primary" id="in-next"></button>
         </div>
       </section>`;
-    // primo avvio sul dispositivo → registrazione; se qui c'è già stato un account → accesso
-    const finish = () => { if (user) Store.setIntroSeen(); go(user ? 'explore' : Store.hadAccount() ? 'login' : 'register'); };
+    // chi non è dentro arriva sempre alla registrazione; l'accesso è un link secondario
+    const finish = () => { if (user) Store.setIntroSeen(); go(user ? 'explore' : 'register'); };
     const render = () => {
       const s = slides[i];
       $('#in-body').innerHTML = `
@@ -303,7 +303,7 @@
           <p>${s.text}</p>
         </div>`;
       $$('#in-dots i').forEach((d, k) => d.classList.toggle('on', k === i));
-      $('#in-next').textContent = i === slides.length - 1 ? (user ? t('startDriving') : Store.hadAccount() ? t('login') : t('createAccount')) : t('next');
+      $('#in-next').textContent = i === slides.length - 1 ? (user ? t('startDriving') : t('createAccount')) : t('next');
     };
     $('#in-next').onclick = () => { if (i < slides.length - 1) { i++; render(); } else finish(); };
     $('#in-skip').onclick = finish;
