@@ -529,7 +529,6 @@
     return `
       <article class="card ${dr ? 'is-driven' : ''}" data-go="${r.id}">
         <div class="card-art">${roadArt(r, { w: 320, h: 190, num: r.no })}
-          <span class="plate">${dr ? CHK : ''}No.${r.no}</span>
           <span class="card-alt"><b>${fmt(r.alt)}</b><small>m</small></span>
           ${dr ? `<span class="stamp">${drivenPlate(r)}</span>` : ''}
           <button class="fav-btn ${fav ? 'on' : ''}" data-fav="${r.id}" aria-label="${t('favorite')}">${icon('heart')}</button>
@@ -572,7 +571,6 @@
 
       <section class="featured ${Store.isDriven(rod.id) ? 'is-driven' : ''}" data-go="${rod.id}">
         ${roadArt(rod, { w: 400, h: 230, num: rod.no, stripes: true })}
-        <span class="plate">${Store.isDriven(rod.id) ? CHK : ''}No.${rod.no}</span>
         <div class="featured-info">
           <span class="kicker">峠 ${t('roadOfDay')}</span>
           <h2>${esc(rod.name)}</h2>
@@ -580,13 +578,17 @@
         </div>
       </section>
 
-      <div class="list-head"><h2 class="h2">${t('explore')}</h2><span class="muted small" id="count"></span></div>
+      <div class="list-head"><h2 class="h2" id="list-title">${t('explore')}</h2><span class="muted small" id="count"></span></div>
       <div class="grid" id="list"></div>
       <div class="sheet-wrap" id="sheet" hidden></div>`;
 
     const renderList = () => {
       const list = applyFilters();
-      $('#count').textContent = `${list.length} ${t('results')}`;
+      // con filtri o ricerca attivi la pagina diventa "risultati": sparisce la strada del giorno
+      const filtered = activeCount() > 0 || !!filters.q.trim();
+      $('.featured').hidden = filtered;
+      $('#list-title').textContent = filtered ? t('filteredTitle') : t('explore');
+      $('#count').textContent = `${list.length} ${list.length === 1 ? t('result1') : t('results')}`;
       $('#list').innerHTML = list.length ? list.map(roadCard).join('') : `<p class="empty">${t('noResults')}</p>`;
       bindCards($('#list'));
     };
