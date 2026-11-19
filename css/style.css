@@ -582,3 +582,15 @@ body.auth-mode .app { height: 100%; min-height: 0; }
 .or::before, .or::after { content: ''; flex: 1; height: 2px; background: rgba(0,0,0,.18); }
 @media (min-width: 900px) { .auth.full .auth-art { flex: 1 1 auto; height: auto; } .auth.full .auth-card { flex: 0 0 460px; margin: 24px 56px; border: 3px solid var(--ink); box-shadow: 6px 6px 0 #000; max-height: calc(100% - 48px); } }
 @media (max-height: 700px) { .auth.full .auth-art { height: 72px; } .or { margin: 10px 0 8px; } .btn.social { height: 44px; } }
+
+/* ═════════════ Chip filtro (Esplora + Mappa) ═════════════ */
+.fchip { gap: 6px; padding: 8px 14px 8px 16px; }
+.fchip .ic { width: 16px; height: 16px; flex: none; }
+.fchip .chev { width: 14px; height: 14px; margin-left: -2px; opacity: .7; }
+.fchip.on .chev { opacity: 1; }
+.fchip.reset { background: var(--red); color: var(--paper); }
+.fchip.reset.glass { background: var(--red); }
+.sheet-head .h2 .ic { width: 22px; height: 22px; }
+.sheet-hint { margin: 2px 0 12px; color: var(--ink-soft); }
+.sheet .chips.wrap .chip { font-size: 15px; }
+.sheet .btn [data-n] { font-family: var(--mono); font-size: 14px; margin-left: 6px; }

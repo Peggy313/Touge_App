@@ -10,7 +10,8 @@
 
   let lang = Store.lang();
   let map = null; // istanza Leaflet attiva
-  const filters = { q: '', country: 'ALL', diff: [], sort: 'name', open: false, noToll: false };
+  // filtri: dentro una categoria vale "o" (es. Italia o Slovenia), tra categorie "e"
+  const filters = { q: '', sel: { country: [], diff: [], len: [], hair: [], alt: [] }, sort: 'name', open: false, noToll: false };
 
   const t = (k) => (I18N[lang] && I18N[lang][k] != null ? I18N[lang][k] : k);
   const esc = (s) => String(s == null ? '' : s).replace(/[&<>"']/g, (c) => ({ '&': '&amp;', '<': '&lt;', '>': '&gt;', '"': '&quot;', "'": '&#39;' }[c]));
@@ -20,6 +21,7 @@
     IT: '<rect width="1" height="2" fill="#009246"/><rect x="1" width="1" height="2" fill="#fff"/><rect x="2" width="1" height="2" fill="#ce2b37"/>',
     FR: '<rect width="1" height="2" fill="#0055a4"/><rect x="1" width="1" height="2" fill="#fff"/><rect x="2" width="1" height="2" fill="#ef4135"/>',
     AT: '<rect width="3" height="2" fill="#ed2939"/><rect y=".667" width="3" height=".667" fill="#fff"/>',
+    SI: '<rect width="3" height="2" fill="#fff"/><rect y=".667" width="3" height=".667" fill="#0057b8"/><rect y="1.333" width="3" height=".667" fill="#ed1c24"/><path d="M.55 .35h.6v.55q0 .3-.3.42-.3-.12-.3-.42Z" fill="#0057b8" stroke="#ed1c24" stroke-width=".05"/><path d="M.62 .82l.12-.2.11.12.12-.22.13.3" fill="none" stroke="#fff" stroke-width=".05"/>',
     CH: '<rect width="3" height="2" fill="#da291c"/><rect x="1.3" y=".45" width=".4" height="1.1" fill="#fff"/><rect x=".95" y=".8" width="1.1" height=".4" fill="#fff"/>',
   };
   const flag = (c) => `<svg class="flag" viewBox="0 0 3 2" aria-label="${c}">${FLAGS[c] || ''}</svg>`;
@@ -54,6 +56,9 @@
     globe: '<path d="M12 2a10 10 0 1 0 0 20 10 10 0 0 0 0-20Zm6.9 6h-3a15 15 0 0 0-1.3-3.8A8 8 0 0 1 18.9 8ZM12 4c.8 1.2 1.5 2.5 1.9 4h-3.8c.4-1.5 1.1-2.8 1.9-4ZM4.3 14a8 8 0 0 1 0-4h3.4a16 16 0 0 0 0 4H4.3Zm.8 2h3a15 15 0 0 0 1.3 3.8A8 8 0 0 1 5.1 16Zm3-8h-3a8 8 0 0 1 4.3-3.8C8.9 5.4 8.4 6.7 8.1 8ZM12 20c-.8-1.2-1.5-2.5-1.9-4h3.8c-.4 1.5-1.1 2.8-1.9 4Zm2.3-6H9.7a14 14 0 0 1 0-4h4.6a14 14 0 0 1 0 4Zm.3 5.8c.6-1.2 1-2.5 1.3-3.8h3a8 8 0 0 1-4.3 3.8Zm1.7-5.8a16 16 0 0 0 0-4h3.4a8 8 0 0 1 0 4h-3.4Z"/>',
     external: '<path d="M14 3v2h3.6l-9.3 9.3 1.4 1.4L19 6.4V10h2V3h-7ZM5 5v14h14v-5h-2v3H7V7h3V5H5Z"/>',
     check: '<path d="m9 16.2-4.2-4.2-1.4 1.4L9 19 21 7l-1.4-1.4L9 16.2Z"/>',
+    gauge: '<path d="M12 4A10 10 0 0 0 3.4 19.1l1.7-1A8 8 0 1 1 18.9 18l1.7 1A10 10 0 0 0 12 4Zm5.3 4.6-6.2 4.6a1.9 1.9 0 1 0 2.4 2.2l3.8-6.8Z"/>',
+    chev: '<path d="M7 10h10l-5 5-5-5Z"/>',
+    close: '<path d="m6.4 5 5.6 5.6L17.6 5 19 6.4 13.4 12l5.6 5.6-1.4 1.4-5.6-5.6L6.4 19 5 17.6l5.6-5.6L5 6.4 6.4 5Z"/>',
     share: '<path d="M18 16a3 3 0 0 0-2.4 1.2L8.9 13.7a3 3 0 0 0 0-3.4l6.7-3.5A3 3 0 1 0 15 5c0 .2 0 .5.1.7L8.4 9.2a3 3 0 1 0 0 5.6l6.7 3.5A3 3 0 1 0 18 16Z"/>',
     story: '<path d="M7 2h10a5 5 0 0 1 5 5v10a5 5 0 0 1-5 5H7a5 5 0 0 1-5-5V7a5 5 0 0 1 5-5Zm0 2a3 3 0 0 0-3 3v10a3 3 0 0 0 3 3h10a3 3 0 0 0 3-3V7a3 3 0 0 0-3-3H7Zm5 3.5a4.5 4.5 0 1 1 0 9 4.5 4.5 0 0 1 0-9Zm0 2a2.5 2.5 0 1 0 0 5 2.5 2.5 0 0 0 0-5Zm5.3-4a1.2 1.2 0 1 1 0 2.4 1.2 1.2 0 0 1 0-2.4Z"/>',
   };
@@ -458,11 +463,31 @@
   }
 
   // ───────────── EXPLORE ─────────────
+  // categorie di filtro: icona, etichetta e opzioni (con la regola che le verifica)
+  const FILTER_DEFS = {
+    country: { icon: 'globe', label: 'country', opts: () => Object.keys(COUNTRIES).map((c) => ({ v: c, label: flag(c) + ' ' + cname(c), short: cname(c), test: (r) => r.country === c })) },
+    diff: { icon: 'gauge', label: 'difficulty', opts: () => [1, 2, 3, 4, 5].map((d) => ({ v: d, label: diffBars(d) + ' ' + t('diffLabels')[d], short: t('diffLabels')[d], test: (r) => r.diff === d })) },
+    len: { icon: 'road', label: 'length', opts: () => [
+      { v: 's', label: '&lt; 20 km', short: '&lt; 20 km', test: (r) => r.km < 20 },
+      { v: 'm', label: '20–40 km', short: '20–40 km', test: (r) => r.km >= 20 && r.km <= 40 },
+      { v: 'l', label: '&gt; 40 km', short: '&gt; 40 km', test: (r) => r.km > 40 }] },
+    hair: { icon: 'hairpin', label: 'hairpins', opts: () => [
+      { v: 'few', label: t('hairFew') + ' · &lt; 10', short: '&lt; 10', test: (r) => r.hairpins < 10 },
+      { v: 'mid', label: t('hairMid') + ' · 10–29', short: '10–29', test: (r) => r.hairpins >= 10 && r.hairpins < 30 },
+      { v: 'many', label: t('hairMany') + ' · 30+', short: '30+', test: (r) => r.hairpins >= 30 }] },
+    alt: { icon: 'mountain', label: 'altitude', opts: () => [
+      { v: 'low', label: '&lt; 1500 m', short: '&lt; 1500 m', test: (r) => r.alt < 1500 },
+      { v: 'mid', label: '1500–2200 m', short: '1500–2200 m', test: (r) => r.alt >= 1500 && r.alt <= 2200 },
+      { v: 'high', label: '&gt; 2200 m', short: '&gt; 2200 m', test: (r) => r.alt > 2200 }] },
+  };
+  const activeCount = () => Object.values(filters.sel).reduce((n, a) => n + a.length, 0) + (filters.open ? 1 : 0) + (filters.noToll ? 1 : 0);
+
   function applyFilters() {
     const q = filters.q.trim().toLowerCase();
+    const groups = Object.entries(filters.sel).filter(([, vals]) => vals.length)
+      .map(([k, vals]) => FILTER_DEFS[k].opts().filter((o) => vals.includes(o.v)));
     let list = ROADS.filter((r) => {
-      if (filters.country !== 'ALL' && r.country !== filters.country) return false;
-      if (filters.diff.length && !filters.diff.includes(r.diff)) return false;
+      if (groups.some((opts) => !opts.some((o) => o.test(r)))) return false;
       if (filters.open && r.closure) return false;
       if (filters.noToll && r.toll) return false;
       if (q && !(r.name + ' ' + r.region + ' ' + cname(r.country) + ' ' + r.tags.map(tag).join(' ')).toLowerCase().includes(q)) return false;
@@ -473,6 +498,30 @@
       s === 'alt' ? b.alt - a.alt : s === 'km' ? b.km - a.km : s === 'hair' ? b.hairpins - a.hairpins :
       s === 'rating' ? ((Store.rating(b.id) || { avg: 0 }).avg - (Store.rating(a.id) || { avg: 0 }).avg) : a.name.localeCompare(b.name));
     return list;
+  }
+
+  // riga di chip filtro (stessa in Esplora e Mappa): ogni chip apre le sue opzioni
+  function filterChips(box, onChange, glass) {
+    const g = glass ? ' glass' : '';
+    const label = (k) => {
+      const vals = filters.sel[k];
+      if (!vals.length) return t(FILTER_DEFS[k].label);
+      if (vals.length === 1) return FILTER_DEFS[k].opts().find((o) => o.v === vals[0]).short;
+      return `${t(FILTER_DEFS[k].label)} · ${vals.length}`;
+    };
+    const paint = () => {
+      const n = activeCount();
+      box.innerHTML =
+        (n ? `<button class="chip fchip reset${g}" data-reset>${icon('close')}<span>${t('reset')}</span></button>` : '') +
+        Object.keys(FILTER_DEFS).map((k) => `<button class="chip fchip${g} ${filters.sel[k].length ? 'on' : ''}" data-f="${k}" aria-haspopup="dialog">${icon(FILTER_DEFS[k].icon)}<span>${label(k)}</span>${icon('chev', 'chev')}</button>`).join('') +
+        `<button class="chip fchip${g} ${filters.open ? 'on' : ''}" data-t="open" aria-pressed="${filters.open}">${icon('snow')}<span>${t('openNow')}</span></button>` +
+        `<button class="chip fchip${g} ${filters.noToll ? 'on' : ''}" data-t="noToll" aria-pressed="${filters.noToll}">${icon('euro')}<span>${t('noToll')}</span></button>`;
+      $$('[data-f]', box).forEach((b) => (b.onclick = () => openFilterSheet(b.dataset.f, () => { paint(); onChange(); })));
+      $$('[data-t]', box).forEach((b) => (b.onclick = () => { filters[b.dataset.t] = !filters[b.dataset.t]; paint(); onChange(); }));
+      const r = $('[data-reset]', box);
+      if (r) r.onclick = () => { Object.keys(filters.sel).forEach((k) => (filters.sel[k] = [])); filters.open = filters.noToll = false; paint(); onChange(); };
+    };
+    paint();
   }
 
   function roadCard(r) {
@@ -510,7 +559,6 @@
 
   function viewExplore(_, user) {
     const rod = roadOfDay();
-    const countries = ['ALL', ...Object.keys(COUNTRIES)];
     app.innerHTML = `
       <header class="top">
         <div><p class="muted small">${t('exploreSub')}</p><h1 class="h1">${t('hello')}, ${esc(user.name)}</h1></div>
@@ -518,9 +566,9 @@
       </header>
       <div class="search-row">
         <label class="search">${icon('search')}<input id="q" type="search" placeholder="${t('search')}" value="${esc(filters.q)}" /></label>
-        <button class="icon-btn ${filters.diff.length || filters.open || filters.noToll || filters.sort !== 'name' ? 'dot' : ''}" id="open-filters" aria-label="${t('filters')}">${icon('sliders')}</button>
+        <button class="icon-btn ${filters.sort !== 'name' ? 'dot' : ''}" id="open-filters" aria-label="${t('sort')}">${icon('sliders')}</button>
       </div>
-      <div class="chips" id="chips">${countries.map((c) => `<button class="chip ${filters.country === c ? 'on' : ''}" data-c="${c}">${c === 'ALL' ? t('all') : flag(c) + ' ' + cname(c)}</button>`).join('')}</div>
+      <div class="chips" id="chips"></div>
 
       <section class="featured ${Store.isDriven(rod.id) ? 'is-driven' : ''}" data-go="${rod.id}">
         ${roadArt(rod, { w: 400, h: 230, num: rod.no, stripes: true })}
@@ -546,46 +594,53 @@
     $('.featured').onclick = () => go('road-' + rod.id);
 
     $('#q').oninput = (e) => { filters.q = e.target.value; renderList(); };
-    $$('#chips .chip').forEach((b) => (b.onclick = () => {
-      filters.country = b.dataset.c;
-      $$('#chips .chip').forEach((x) => x.classList.toggle('on', x === b));
-      renderList();
-    }));
-    $('#open-filters').onclick = () => openFilterSheet(() => { renderList(); $('#open-filters').classList.toggle('dot', !!(filters.diff.length || filters.open || filters.noToll || filters.sort !== 'name')); });
+    filterChips($('#chips'), renderList);
+    $('#open-filters').onclick = () => openSortSheet(() => { renderList(); $('#open-filters').classList.toggle('dot', filters.sort !== 'name'); });
   }
 
-  function openFilterSheet(onApply) {
-    const sh = $('#sheet');
-    const sorts = [['name', 'sortName'], ['alt', 'sortAlt'], ['km', 'sortKm'], ['hair', 'sortHair'], ['rating', 'sortRating']];
-    sh.innerHTML = `
-      <div class="sheet-bg" data-close></div>
-      <div class="sheet" role="dialog" aria-label="${t('filters')}">
-        <div class="sheet-grab"></div>
-        <div class="sheet-head"><h2 class="h2">${t('filters')}</h2><button class="link" id="f-reset">${t('reset')}</button></div>
-        <h4>${t('difficulty')}</h4>
-        <div class="chips wrap">${[1, 2, 3, 4, 5].map((d) => `<button class="chip ${filters.diff.includes(d) ? 'on' : ''}" data-d="${d}">${diffBars(d)} ${t('diffLabels')[d]}</button>`).join('')}</div>
-        <h4>${t('sort')}</h4>
-        <div class="chips wrap">${sorts.map(([v, k]) => `<button class="chip ${filters.sort === v ? 'on' : ''}" data-s="${v}">${t(k)}</button>`).join('')}</div>
-        <label class="toggle"><span>${t('onlyOpen')}</span><input type="checkbox" id="f-open" ${filters.open ? 'checked' : ''}/><i></i></label>
-        <label class="toggle"><span>${t('noToll')}</span><input type="checkbox" id="f-toll" ${filters.noToll ? 'checked' : ''}/><i></i></label>
-        <button class="btn primary" data-close>OK</button>
-      </div>`;
-    sh.hidden = false;
-    requestAnimationFrame(() => sh.classList.add('open'));
-    const close = () => { sh.classList.remove('open'); setTimeout(() => (sh.hidden = true), 250); onApply(); };
-    $$('[data-close]', sh).forEach((b) => (b.onclick = close));
-    $$('[data-d]', sh).forEach((b) => (b.onclick = () => {
-      const d = +b.dataset.d;
-      filters.diff = filters.diff.includes(d) ? filters.diff.filter((x) => x !== d) : [...filters.diff, d];
-      b.classList.toggle('on'); onApply();
+  // foglio dal basso generico (filtri, ordinamento)
+  function openSheet(html, onClose) {
+    const wrap = document.createElement('div');
+    wrap.className = 'sheet-wrap';
+    wrap.innerHTML = `<div class="sheet-bg" data-close></div><div class="sheet" role="dialog">${html}</div>`;
+    document.body.appendChild(wrap);
+    requestAnimationFrame(() => wrap.classList.add('open'));
+    const close = () => { wrap.classList.remove('open'); setTimeout(() => wrap.remove(), 250); if (onClose) onClose(); };
+    $$('[data-close]', wrap).forEach((b) => (b.onclick = close));
+    return wrap;
+  }
+
+  // opzioni di una categoria di filtro (selezione multipla, si applica subito)
+  function openFilterSheet(key, onChange) {
+    const def = FILTER_DEFS[key];
+    const sel = filters.sel[key];
+    const sh = openSheet(`
+      <div class="sheet-head"><h2 class="h2">${icon(def.icon)} ${t(def.label)}</h2><button class="link" data-clear>${t('reset')}</button></div>
+      <p class="muted small sheet-hint">${t('multiHint')}</p>
+      <div class="chips wrap">${def.opts().map((o) => `<button class="chip ${sel.includes(o.v) ? 'on' : ''}" data-v="${o.v}">${o.label}</button>`).join('')}</div>
+      <button class="btn primary" data-close>${t('showResults')} <span data-n></span></button>`);
+    const count = () => { $('[data-n]', sh).textContent = `(${applyFilters().length})`; };
+    $$('[data-v]', sh).forEach((b) => (b.onclick = () => {
+      const v = isNaN(+b.dataset.v) ? b.dataset.v : +b.dataset.v;
+      const i = filters.sel[key].indexOf(v);
+      if (i >= 0) filters.sel[key].splice(i, 1); else filters.sel[key].push(v);
+      b.classList.toggle('on', i < 0); count(); onChange();
     }));
+    $('[data-clear]', sh).onclick = () => { filters.sel[key] = []; $$('[data-v]', sh).forEach((b) => b.classList.remove('on')); count(); onChange(); };
+    count();
+  }
+
+  // ordinamento (bottone con i cursori accanto alla ricerca)
+  function openSortSheet(onChange) {
+    const sorts = [['name', 'sortName'], ['alt', 'sortAlt'], ['km', 'sortKm'], ['hair', 'sortHair'], ['rating', 'sortRating']];
+    const sh = openSheet(`
+      <div class="sheet-head"><h2 class="h2">${icon('sliders')} ${t('sort')}</h2></div>
+      <div class="chips wrap">${sorts.map(([v, k]) => `<button class="chip ${filters.sort === v ? 'on' : ''}" data-s="${v}">${t(k)}</button>`).join('')}</div>
+      <button class="btn primary" data-close>OK</button>`);
     $$('[data-s]', sh).forEach((b) => (b.onclick = () => {
       filters.sort = b.dataset.s;
-      $$('[data-s]', sh).forEach((x) => x.classList.toggle('on', x === b)); onApply();
+      $$('[data-s]', sh).forEach((x) => x.classList.toggle('on', x === b)); onChange();
     }));
-    $('#f-open', sh).onchange = (e) => { filters.open = e.target.checked; onApply(); };
-    $('#f-toll', sh).onchange = (e) => { filters.noToll = e.target.checked; onApply(); };
-    $('#f-reset', sh).onclick = () => { Object.assign(filters, { diff: [], sort: 'name', open: false, noToll: false }); close(); openFilterSheet(onApply); };
   }
 
   // ───────────── MAP ─────────────
@@ -651,7 +706,7 @@
     app.innerHTML = `
       <div class="map-full" id="bigmap"></div>
       <div class="map-overlay">
-        <div class="chips" id="mchips">${['ALL', ...Object.keys(COUNTRIES)].map((c) => `<button class="chip glass ${filters.country === c ? 'on' : ''}" data-c="${c}">${c === 'ALL' ? t('all') : flag(c) + ' ' + cname(c)}</button>`).join('')}</div>
+        <div class="chips" id="mchips"></div>
       </div>
       <div class="map-legend"><span>${rallyPlate({ no: '', diff: 3 }, false)}${t('legendPass')}</span><span>${rallyPlate({ no: '', diff: 3 }, true)}${t('driven')}</span></div>
       <button class="fab" id="locate" aria-label="${t('locate')}" ${OFFLINE_MAP ? 'hidden' : ''}>${icon('locate')}</button>`;
@@ -663,7 +718,7 @@
 
     const draw = (fit) => {
       layer.clearLayers();
-      const list = ROADS.filter((r) => filters.country === 'ALL' || r.country === filters.country);
+      const list = applyFilters();
       list.forEach((r) => {
         const dr = Store.isDriven(r.id);
         const m = L.marker(summit(r), { icon: markerIcon(r), title: r.name, zIndexOffset: dr ? 500 : 0 }).addTo(layer);
@@ -672,11 +727,7 @@
       if (fit && list.length) map.fitBounds(L.latLngBounds(list.map(summit)), { padding: [40, 40], maxZoom: 9 });
     };
     draw(true);
-    $$('#mchips .chip').forEach((b) => (b.onclick = () => {
-      filters.country = b.dataset.c;
-      $$('#mchips .chip').forEach((x) => x.classList.toggle('on', x === b));
-      draw(true);
-    }));
+    filterChips($('#mchips'), () => draw(true), true);
     $('#locate').onclick = () => {
       if (!navigator.geolocation) return;
       navigator.geolocation.getCurrentPosition((p) => {
