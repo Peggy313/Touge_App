@@ -908,47 +908,119 @@
     else toast(url);
   }
 
-  // anteprima della storia con la placca, poi Condividi (Instagram, WhatsApp…) o Salva
+  // Cartolina: stile (Retrò / Vaporwave / Cyberpunk) + elementi accendibili, poi Instagram o Salva PNG/SVG.
+  // La storia per Instagram viene preparata in anticipo: su iPhone navigator.share va chiamato subito al tocco.
+  const PC_KEY = 'touge.postcard';
+  function downloadBlob(blob, name) {
+    const url = URL.createObjectURL(blob);
+    const a = document.createElement('a');
+    a.href = url; a.download = name; document.body.appendChild(a); a.click(); a.remove();
+    setTimeout(() => URL.revokeObjectURL(url), 4000);
+  }
   async function openStorySheet(r) {
+    const TS = window.TougeShare;
+    let saved = {};
+    try { saved = JSON.parse(localStorage.getItem(PC_KEY)) || {}; } catch (e) { /* niente preferenze */ }
+    let style = TS.STYLES.includes(saved.style) ? saved.style : 'vapor';
+    const els = { stamp: true, postmark: true, greet: true, plate: true };
+    if (saved.els) TS.ELEMENTS.forEach((k) => { if (typeof saved.els[k] === 'boolean') els[k] = saved.els[k]; });
+    const info = {
+      drivenAt: Store.driven()[r.id], plateLabel: Store.isDriven(r.id) ? t('driven') : t('markDriven'), hairpinsLabel: t('hairpins'),
+      region: r.region, country: cname(r.country), tagline: t('tagline'), greet: t('pcGreet'),
+    };
+
     const wrap = document.createElement('div');
     wrap.className = 'sheet-wrap story-sheet';
     wrap.innerHTML = `
       <div class="sheet-bg" data-close></div>
-      <div class="sheet" role="dialog" aria-label="${t('storyTitle')}">
-        <div class="sheet-head"><h2 class="h2">${t('storyTitle')}</h2><button class="link" data-close>${t('close')}</button></div>
-        <div class="story-preview" id="story-prev"><span class="kicker">${t('preparing')}</span></div>
-        <div class="story-actions">
-          <button class="btn primary" id="story-share" disabled>${icon('story')} ${t('shareStory')}</button>
-          <button class="btn ghost" id="story-save" disabled>${t('saveImage')}</button>
+      <div class="sheet pc-sheet" role="dialog" aria-label="${t('pcTitle')}">
+        <div class="sheet-head"><h2 class="h2">${t('pcTitle')}</h2><button class="link" data-close>${t('close')}</button></div>
+        <div class="pc-styles">
+          <button class="pc-arrow" data-step="-1" aria-label="${t('pcPrev')}">‹</button>
+          <div class="pc-style-row" role="tablist">${TS.STYLES.map((s) => `<button class="pc-style" role="tab" data-style="${s}">${t('pcStyle_' + s)}</button>`).join('')}</div>
+          <button class="pc-arrow" data-step="1" aria-label="${t('pcNext')}">›</button>
+        </div>
+        <div class="pc-preview" id="pc-prev"><span class="kicker">${t('preparing')}</span></div>
+        <div class="pc-els">${TS.ELEMENTS.map((k) => `<button class="chip pc-el" data-el="${k}">${t('pcEl_' + k)}</button>`).join('')}</div>
+        <div class="pc-actions" id="pc-actions">
+          <button class="btn pc-ig" id="pc-ig">${icon('story')} Instagram</button>
+          <button class="btn pc-save" id="pc-save" aria-label="${t('saveImage')}">${t('pcSave')} <span aria-hidden="true">▾</span></button>
+          <button class="btn pc-fmt" data-fmt="png">PNG</button>
+          <button class="btn pc-fmt" data-fmt="svg">SVG</button>
+          <button class="btn pc-fmt pc-x" data-fmt="" aria-label="${t('close')}">✕</button>
         </div>
       </div>`;
     document.body.appendChild(wrap);
     requestAnimationFrame(() => wrap.classList.add('open'));
-    const close = () => { wrap.classList.remove('open'); setTimeout(() => { wrap.remove(); if (url) URL.revokeObjectURL(url); }, 250); };
+    const close = () => { wrap.classList.remove('open'); setTimeout(() => wrap.remove(), 250); };
     $$('[data-close]', wrap).forEach((b) => (b.onclick = close));
-    let blob = null, url = null;
-    try {
-      blob = await TougeShare.plateStory(r, {
-        drivenAt: Store.driven()[r.id], drivenLabel: Store.isDriven(r.id) ? t('driven') : t('markDriven'), hairpinsLabel: t('hairpins'),
-        region: r.region, country: cname(r.country), tagline: t('tagline'),
-      });
-    } catch (e) { $('#story-prev', wrap).innerHTML = `<p class="empty">${t('storyError')}</p>`; return; }
-    url = URL.createObjectURL(blob);
-    $('#story-prev', wrap).innerHTML = `<img src="${url}" alt="${esc(r.name)} · ${esc(t('driven'))}" />`;
-    const file = new File([blob], `touge-${r.id}.png`, { type: 'image/png' });
-    const canShareFile = !!(navigator.canShare && navigator.canShare({ files: [file] }));
-    const shareBtn = $('#story-share', wrap), saveBtn = $('#story-save', wrap);
-    shareBtn.disabled = !canShareFile; saveBtn.disabled = false;
-    if (!canShareFile) shareBtn.hidden = true;
-    shareBtn.onclick = () => {
-      navigator.share({ files: [file], title: `${r.name} · TOUGE`, text: t('shareRoadText').replace('{name}', r.name) })
-        .catch((e) => { if (e && e.name !== 'AbortError') toast(t('storyError')); });
+
+    const prev = $('#pc-prev', wrap), actions = $('#pc-actions', wrap), igBtn = $('#pc-ig', wrap);
+    let story = null; // { key, promise, blob }
+    const key = () => style + JSON.stringify(els);
+    const prepareStory = () => {
+      const k = key();
+      if (story && story.key === k) return story;
+      const s = { key: k, blob: null };
+      s.promise = TS.storyPng(r, info, style, els).then((b) => (s.blob = b));
+      s.promise.catch(() => {});
+      return (story = s);
     };
-    saveBtn.onclick = () => {
-      const a = document.createElement('a');
-      a.href = url; a.download = file.name; document.body.appendChild(a); a.click(); a.remove();
-      toast(t('imageSaved'));
+    let storyTimer = 0;
+    const draw = () => {
+      prev.innerHTML = TS.preview(r, info, style, els);
+      $$('.pc-style', wrap).forEach((b) => { const on = b.dataset.style === style; b.classList.toggle('on', on); b.setAttribute('aria-selected', on); });
+      $$('.pc-el', wrap).forEach((b) => { b.classList.toggle('on', !!els[b.dataset.el]); b.setAttribute('aria-pressed', !!els[b.dataset.el]); });
+      try { localStorage.setItem(PC_KEY, JSON.stringify({ style, els })); } catch (e) { /* ok */ }
+      clearTimeout(storyTimer); storyTimer = setTimeout(prepareStory, 500);
     };
+    const step = (dir) => { const L = TS.STYLES; style = L[(L.indexOf(style) + dir + L.length) % L.length]; draw(); };
+
+    $$('.pc-style', wrap).forEach((b) => (b.onclick = () => { style = b.dataset.style; draw(); }));
+    $$('.pc-arrow', wrap).forEach((b) => (b.onclick = () => step(+b.dataset.step)));
+    $$('.pc-el', wrap).forEach((b) => (b.onclick = () => { els[b.dataset.el] = !els[b.dataset.el]; draw(); }));
+    // scorrere sull'anteprima cambia stile
+    let x0 = null;
+    prev.addEventListener('touchstart', (e) => { x0 = e.touches[0].clientX; }, { passive: true });
+    prev.addEventListener('touchend', (e) => {
+      if (x0 == null) return;
+      const dx = e.changedTouches[0].clientX - x0; x0 = null;
+      if (Math.abs(dx) > 40) step(dx < 0 ? 1 : -1);
+    });
+
+    // Instagram: foglio di condivisione del telefono con la storia 9:16 (lì si sceglie Instagram)
+    igBtn.onclick = async () => {
+      const s = prepareStory();
+      const name = `touge-${r.id}-story.png`;
+      const shareNow = (blob) => {
+        const file = new File([blob], name, { type: 'image/png' });
+        if (navigator.canShare && navigator.canShare({ files: [file] })) {
+          return navigator.share({ files: [file] }).catch((e) => {
+            if (e && e.name === 'NotAllowedError') toast(t('pcTapAgain'));
+            else if (e && e.name !== 'AbortError') toast(t('storyError'));
+          });
+        }
+        downloadBlob(blob, name); toast(t('pcIgFallback'));
+      };
+      if (s.blob) return shareNow(s.blob);
+      igBtn.classList.add('loading');
+      try { shareNow(await s.promise); } catch (e) { toast(t('storyError')); } finally { igBtn.classList.remove('loading'); }
+    };
+    // Salva → scelta PNG / SVG
+    $('#pc-save', wrap).onclick = () => actions.classList.add('choose');
+    $$('.pc-fmt', wrap).forEach((b) => (b.onclick = async () => {
+      const fmt = b.dataset.fmt;
+      if (!fmt) { actions.classList.remove('choose'); return; }
+      b.classList.add('loading');
+      try {
+        const blob = fmt === 'svg' ? await TS.postcardSvg(r, info, style, els) : await TS.postcardPng(r, info, style, els);
+        downloadBlob(blob, `touge-${r.id}-${style}.${fmt}`);
+        toast(t('imageSaved'));
+        actions.classList.remove('choose');
+      } catch (e) { toast(t('storyError')); } finally { b.classList.remove('loading'); }
+    }));
+
+    try { await TS.ready(); draw(); } catch (e) { prev.innerHTML = `<p class="empty">${t('storyError')}</p>`; }
   }
 
   // ───────────── GARAGE ─────────────

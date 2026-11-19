@@ -559,13 +559,44 @@ body.auth-mode .app { height: 100%; min-height: 0; }
 @media (min-width: 768px) { .detail > .share-row { max-width: 880px; margin-left: auto; margin-right: auto; } }
 
 .story-sheet .sheet { max-width: 480px; }
-.story-preview { display: grid; place-items: center; background: var(--ink); border: 3px solid var(--ink); aspect-ratio: 9 / 16; max-height: 56vh; margin: 8px auto 0; width: auto; max-width: 100%; }
-.story-preview img { display: block; width: 100%; height: 100%; object-fit: contain; }
+/* altezza esplicita (non solo max-height): su Safari iOS l'immagine dentro un box con aspect-ratio ignora height:100% e straborda */
+.story-preview { position: relative; overflow: hidden; display: grid; place-items: center; background: var(--ink); border: 3px solid var(--ink); box-sizing: border-box; height: min(56vh, calc((100vw - 36px) * 16 / 9)); height: min(56svh, calc((100vw - 36px) * 16 / 9)); width: auto; aspect-ratio: 9 / 16; max-width: 100%; margin: 8px auto 0; }
+.story-preview img { position: absolute; inset: 0; display: block; width: 100%; height: 100%; object-fit: contain; }
 .story-preview .kicker { color: var(--yellow); animation: sp-pulse 1.2s ease-in-out infinite; }
 .story-actions { display: grid; gap: 10px; margin-top: 14px; }
 .story-actions .btn { margin-top: 0; }
 .story-actions .btn.ghost { color: var(--ink); }
 .story-actions .btn .ic { width: 22px; height: 22px; }
+
+/* Cartolina: stile in alto, anteprima 2:3, elementi sotto, Instagram / Salva (PNG·SVG) */
+.pc-sheet { padding-bottom: calc(16px + var(--safe-b)); }
+.pc-styles { display: grid; grid-template-columns: 34px 1fr 34px; align-items: center; gap: 6px; margin-top: 6px; }
+.pc-arrow { height: 36px; font-family: var(--display); font-size: 26px; line-height: 1; color: var(--ink); background: rgba(0,0,0,.08); }
+.pc-style-row { display: flex; gap: 4px; min-width: 0; }
+.pc-style { flex: 1 1 0; min-width: 0; height: 36px; padding: 0 6px; font-family: var(--display); font-size: 15px; letter-spacing: .04em; text-transform: uppercase; color: var(--ink); background: rgba(0,0,0,.08); clip-path: polygon(8px 0, 100% 0, calc(100% - 8px) 100%, 0 100%); white-space: nowrap; overflow: hidden; text-overflow: ellipsis; }
+.pc-style.on[data-style="retro"] { background: #e3262c; color: #f6efe0; }
+.pc-style.on[data-style="vapor"] { background: linear-gradient(100deg, #ff9fc4, #ff4fb0 45%, #7b2cbf); color: #fff; text-shadow: 1px 1px 0 #2a0e5c; }
+.pc-style.on[data-style="cyber"] { background: #0b0c16; color: #00e5ff; text-shadow: 0 0 6px #00e5ff; }
+.pc-preview { position: relative; display: grid; place-items: center; height: clamp(240px, calc(88vh - 300px), 540px); height: clamp(240px, calc(88svh - 300px), 540px); aspect-ratio: 2 / 3; width: auto; max-width: 100%; margin: 12px auto 0; touch-action: pan-y; filter: drop-shadow(5px 6px 0 rgba(0,0,0,.35)); }
+.pc-preview svg { position: absolute; inset: 0; display: block; width: 100%; height: 100%; }
+.pc-preview .kicker { color: var(--ink); animation: sp-pulse 1.2s ease-in-out infinite; }
+.pc-els { display: flex; gap: 6px; overflow-x: auto; margin: 12px -18px 0; padding: 0 18px 2px; scrollbar-width: none; }
+.pc-els::-webkit-scrollbar { display: none; }
+.pc-els .chip { flex: 0 0 auto; }
+.pc-els .chip::before { content: '+'; font-family: var(--mono); font-weight: 700; }
+.pc-els .chip.on::before { content: '✓'; }
+.pc-actions { display: grid; grid-template-columns: 1fr 1fr; gap: 10px; margin-top: 14px; }
+.pc-actions .btn { margin-top: 0; height: 52px; font-size: 18px; padding: 0 8px; }
+.pc-actions .btn .ic { width: 22px; height: 22px; }
+.pc-ig { color: #fff; background: linear-gradient(100deg, #ffcc00 -15%, #ff4fb0 35%, #7b2cbf 75%, #1b3a8c 115%); box-shadow: 4px 4px 0 var(--ink); text-shadow: 2px 2px 0 var(--ink); }
+.pc-ig .ic { filter: drop-shadow(2px 2px 0 var(--ink)); }
+.pc-save { background: var(--paper); color: var(--ink); box-shadow: 4px 4px 0 var(--ink); }
+.pc-ig:active, .pc-save:active, .pc-fmt:active { transform: translate(3px, 3px); box-shadow: 1px 1px 0 var(--ink); }
+.pc-fmt { display: none; background: var(--ink); color: var(--yellow); box-shadow: 4px 4px 0 rgba(0,0,0,.35); }
+.pc-actions.choose { grid-template-columns: 1fr 1fr 52px; }
+.pc-actions.choose .pc-ig, .pc-actions.choose .pc-save { display: none; }
+.pc-actions.choose .pc-fmt { display: flex; }
+.pc-x { background: transparent; color: var(--ink); box-shadow: none; }
 
 .btn.loading { opacity: .6; pointer-events: none; }
 .form-error.info { color: var(--blue); }

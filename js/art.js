@@ -20,7 +20,13 @@
     day: { sky: ['#efe6d2', '#efe6d2'], sun: '#ffcc00', back: '#9fb4c7', mid: '#55708a', front: '#24402e', tree: '#1d3a24', treeHi: '#2f6b3a', asphalt: '#34343a', num: '#ffffff', numOp: 0.55 },
     dusk: { sky: ['#ffcc00', '#f2542d', '#c2185b', '#3a1450'], sun: '#fff3c4', back: '#7a2e5a', mid: '#3e1a42', front: '#1b1026', tree: '#120a1a', treeHi: '#2a1636', asphalt: '#26222c', num: '#fff3c4', numOp: 0.35 },
     night: { sky: ['#0d1026', '#0d1026'], sun: '#efe6d2', back: '#1d2547', mid: '#141a33', front: '#0b1f14', tree: '#06130b', treeHi: '#0f2e18', asphalt: '#1b1b22', num: '#efe6d2', numOp: 0.12 },
+    // atmosfere delle cartoline (js/share.js)
+    vapor: { sky: ['#ffe27a', '#ff9fc4', '#e0479e', '#7b2cbf', '#2a0e5c'], sun: '#ffd84a', sunStripes: true, bigSun: true, back: '#b24bd6', mid: '#5a1f8f', front: '#24104a', tree: '#1a0a38', treeHi: '#ff4fb0', asphalt: '#2a1d3f', num: '#ffffff', numOp: 0.3 },
+    cyber: { sky: ['#060714', '#060714'], sun: '#ff2bd6', glow: true, stars: true, trail: true, back: '#1a1f4a', mid: '#10143a', front: '#070a1c', tree: '#04060f', treeHi: '#00e5ff', asphalt: '#121220', edge: '#00e5ff', num: '#00e5ff', numOp: 0.12 },
+    retro: { sky: ['#f3e9d4', '#f3e9d4'], sun: '#e3262c', bigSun: true, back: '#8fb0bf', mid: '#4f7a86', front: '#2d4a3a', tree: '#23392c', treeHi: '#c8553d', asphalt: '#3a3a40', num: '#e3262c', numOp: 0.2 },
   };
+  MOODS.dusk.sunStripes = MOODS.dusk.bigSun = true;
+  MOODS.night.stars = MOODS.night.trail = true;
 
   function ridge(r, w, h, baseY, peakY, roughness) {
     const n = 10;
@@ -107,7 +113,7 @@
     const turns = Math.max(2, Math.min(6, Math.round(road.hairpins / 10) + 1));
     const snow = road.alt > 1900;
     const forest = road.alt < 2200;
-    const sunX = w * (0.2 + r() * 0.6), sunY = h * (moodKey === 'dusk' ? 0.36 : 0.2 + r() * 0.08), sunR = h * (moodKey === 'dusk' ? 0.16 : 0.08);
+    const sunX = w * (0.2 + r() * 0.6), sunY = h * (m.bigSun ? 0.36 : 0.2 + r() * 0.08), sunR = h * (m.bigSun ? 0.16 : 0.08);
 
     const back = ridge(r, w, h, h * 0.62, peakY, 26);
     const mid = ridge(r, w, h, h * 0.72, peakY + h * 0.1, 20);
@@ -122,10 +128,11 @@
     } else sky = `<rect width="${w}" height="${h}" fill="${m.sky[0]}"/>`;
 
     // sole a strisce in stile anni '80 (tramonto) o disco pieno
-    const sunStripes = moodKey === 'dusk'
+    const sunStripes = m.sunStripes
       ? Array.from({ length: 5 }, (_, i) => `<rect x="${(sunX - sunR).toFixed(1)}" y="${(sunY + sunR * (0.1 + i * 0.18)).toFixed(1)}" width="${(sunR * 2).toFixed(1)}" height="${(sunR * (0.03 + i * 0.025)).toFixed(1)}" fill="${m.sky[2]}"/>`).join('')
       : '';
-    const stars = moodKey === 'night' ? Array.from({ length: 26 }, () => `<rect x="${(r() * w).toFixed(0)}" y="${(r() * h * 0.45).toFixed(0)}" width="1.4" height="1.4" fill="#efe6d2" opacity="${(r() * 0.6 + 0.3).toFixed(2)}"/>`).join('') : '';
+    const sunGlow = m.glow ? `<circle cx="${sunX.toFixed(0)}" cy="${sunY.toFixed(0)}" r="${(sunR * 1.7).toFixed(0)}" fill="${m.sun}" opacity=".55" filter="url(#${id}b)"/>` : '';
+    const stars = m.stars ? Array.from({ length: 26 }, () => `<rect x="${(r() * w).toFixed(0)}" y="${(r() * h * 0.45).toFixed(0)}" width="1.4" height="1.4" fill="#efe6d2" opacity="${(r() * 0.6 + 0.3).toFixed(2)}"/>`).join('') : '';
 
     // alberi lungo i bordi della strada e sul fronte
     let trees = '';
@@ -145,7 +152,7 @@
       : '';
 
     // scia di fanali posteriori (lunga esposizione) di notte
-    const trail = moodKey === 'night'
+    const trail = m.trail
       ? `<path d="M${rd.center.slice(10, 95).map((p) => (p.x + p.wd * 0.18).toFixed(1) + ' ' + p.y.toFixed(1)).join(' L')}" fill="none" stroke="#ff2a3c" stroke-width="${(3 * sc).toFixed(1)}" opacity=".9" filter="url(#${id}b)"/>
          <path d="M${rd.center.slice(10, 95).map((p) => (p.x + p.wd * 0.18).toFixed(1) + ' ' + p.y.toFixed(1)).join(' L')}" fill="none" stroke="#ff8a8a" stroke-width="${(1 * sc).toFixed(1)}"/>`
       : '';
@@ -154,7 +161,7 @@
     // per lato. Tratti molto corti (2 punti) così la larghezza cala senza scalini visibili.
     const runs = Math.ceil(rd.center.length / 2);
     const roadLayers =
-      ribbon(rd.center, 2.4 * sc, '#efe6d2', 0, null, runs) +
+      ribbon(rd.center, 2.4 * sc, m.edge || '#efe6d2', 0, null, runs) +
       ribbon(rd.center, 0, m.asphalt, 0, null, runs);
 
     const num = opts.num ? `<text x="${(w / 2).toFixed(0)}" y="${(h * 0.47).toFixed(0)}" text-anchor="middle" class="art-num" font-size="${(h * 0.56).toFixed(0)}" fill="${m.num}" opacity="${m.numOp}">${opts.num}</text>` : '';
@@ -175,12 +182,13 @@
         ${snow ? `<clipPath id="${id}c"><rect width="${w}" height="${(peakY + h * 0.08).toFixed(0)}"/></clipPath>` : ''}
       </defs>
       ${sky}${stars}
-      <circle cx="${sunX.toFixed(0)}" cy="${sunY.toFixed(0)}" r="${sunR.toFixed(0)}" fill="${m.sun}"/>${sunStripes}
+      ${sunGlow}<circle cx="${sunX.toFixed(0)}" cy="${sunY.toFixed(0)}" r="${sunR.toFixed(0)}" fill="${m.sun}"/>${sunStripes}
       ${num}
       <path d="${back}" fill="${m.back}"/>
-      ${snow ? `<path d="${back}" fill="#f7f3ea" clip-path="url(#${id}c)"/>` : ''}
+      ${snow ? `<path d="${back}" fill="${m.snow || '#f7f3ea'}" clip-path="url(#${id}c)"/>` : ''}
       <path d="${mid}" fill="${m.mid}"/>
       <path d="${front}" fill="${m.front}"/>
+      ${opts.ground ? opts.ground(w, h, horizon, sc, r) : ''}
       ${trees}
       ${roadLayers}
       ${centerSegments(rd.center, '#ffcc00', sc)}
