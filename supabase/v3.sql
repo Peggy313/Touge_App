@@ -78,6 +78,12 @@ create trigger review_reported after insert on public.review_reports
 -- ── 2 · Profili: colonne modificabili dall'app ────────────────────
 revoke update on public.profiles from authenticated;
 grant update (name, car, avatar, intro_seen) on public.profiles to authenticated;
+-- se v4 (foto) è già stata eseguita, ridà anche il permesso sulle colonne delle foto
+do $$ begin
+  if exists (select 1 from information_schema.columns where table_schema = 'public' and table_name = 'profiles' and column_name = 'car_photo') then
+    grant update (photo, car_photo) on public.profiles to authenticated;
+  end if;
+end $$;
 
 -- ── 3 · Stato delle strade ────────────────────────────────────────
 -- segnalazioni dei piloti: una per strada per giorno (si può cambiare idea nello stesso giorno)

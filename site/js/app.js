@@ -193,10 +193,24 @@
     return n <= 0 ? t('agoToday') : n === 1 ? t('agoYesterday') : t('agoDays').replace('{n}', n);
   }
 
+  // Strada del giorno: solo tra quelle aperte. Vale lo stato segnalato (piloti / ufficiale);
+  // senza segnalazioni si escludono le strade nel periodo di chiusura tipica, mesi di inizio e fine compresi.
+  const CLOSE_MONTHS = ['Gen', 'Feb', 'Mar', 'Apr', 'Mag', 'Giu', 'Lug', 'Ago', 'Set', 'Ott', 'Nov', 'Dic'];
+  function surelyOpen(r, d) {
+    const st = Store.roadStatus(r.id);
+    if (st) return st.status === 'open';
+    if (!r.closure) return true;
+    const [a, b] = r.closure.split(/[–-]/).map((s) => CLOSE_MONTHS.indexOf(s.trim()));
+    if (a < 0 || b < 0) return true;
+    const m = d.getMonth();
+    return !(a <= b ? m >= a && m <= b : m >= a || m <= b);
+  }
   function roadOfDay() {
     const d = new Date();
     const n = d.getFullYear() * 400 + d.getMonth() * 31 + d.getDate();
-    return ROADS[n % ROADS.length];
+    let list = ROADS.filter((r) => surelyOpen(r, d));
+    if (!list.length) list = ROADS.filter((r) => !r.closure);
+    return list[n % list.length];
   }
 
   // ───────────── router ─────────────

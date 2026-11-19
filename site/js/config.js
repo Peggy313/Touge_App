@@ -15,5 +15,5 @@ window.TOUGE_CONFIG = {
   contactEmail: 'touge.app@gmail.com',
   // notifiche push: chiave PUBBLICA VAPID (la privata va SOLO nei segreti di Supabase, mai qui).
   // Vuota = push non ancora attive: restano gli avvisi nella campanella. Vedi NOTIFICHE-SETUP.md.
-  vapidPublicKey: '',
+  vapidPublicKey: 'BO6CUTxFFyK1vi6acMZLXf-OwwArm18WBKod9DRwe-BUAIXCHZk24i9xe0ZSz2k4w6wa2IvCTuL0-CltqvOk88I',
 };
