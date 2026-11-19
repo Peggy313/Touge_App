@@ -569,3 +569,16 @@ body.auth-mode .app { height: 100%; min-height: 0; }
 
 .btn.loading { opacity: .6; pointer-events: none; }
 .form-error.info { color: var(--blue); }
+
+/* ═════════════ Registrazione a tutto schermo + accesso con Google ═════════════ */
+.auth.full .auth-art { flex: 0 0 auto; height: 112px; min-height: 0; }
+.auth.full .auth-card { flex: 1 1 auto; margin: 0; border-left: 0; border-right: 0; border-bottom: 0; box-shadow: none; max-height: none; padding-bottom: calc(14px + var(--safe-b)); display: flex; flex-direction: column; }
+.auth.full #auth-form { display: flex; flex-direction: column; }
+.auth.full .auth-foot { margin-top: auto; padding-top: 12px; }
+.btn.social { background: #fff; color: #1f1f1f; border: 2px solid var(--ink); box-shadow: 3px 3px 0 var(--ink); font-family: var(--body); font-weight: 600; font-size: 16px; letter-spacing: 0; text-transform: none; height: 50px; gap: 12px; }
+.btn.social:active { transform: translate(2px, 2px); box-shadow: 1px 1px 0 var(--ink); }
+.g-logo { width: 20px; height: 20px; flex: none; }
+.or { display: flex; align-items: center; gap: 10px; margin: 14px 0 12px; font-family: var(--mono); font-size: 10.5px; font-weight: 700; letter-spacing: .12em; text-transform: uppercase; color: var(--ink-soft); }
+.or::before, .or::after { content: ''; flex: 1; height: 2px; background: rgba(0,0,0,.18); }
+@media (min-width: 900px) { .auth.full .auth-art { flex: 1 1 auto; height: auto; } .auth.full .auth-card { flex: 0 0 460px; margin: 24px 56px; border: 3px solid var(--ink); box-shadow: 6px 6px 0 #000; max-height: calc(100% - 48px); } }
+@media (max-height: 700px) { .auth.full .auth-art { height: 72px; } .or { margin: 10px 0 8px; } .btn.social { height: 44px; } }

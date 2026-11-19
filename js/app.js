@@ -180,6 +180,7 @@
       if (name === 'road') { try { sessionStorage.setItem('touge.next', hash); } catch (e) {} } // link condiviso
       return go('intro');
     }
+    if (user) Store.setHadAccount();
     if (user && (PUBLIC.includes(name) || !name)) return go('explore');
 
     const views = { intro: viewIntro, reset: viewReset, login: viewLogin, register: viewRegister, forgot: viewForgot, explore: viewExplore, map: viewMap, road: viewRoad, garage: viewGarage, profile: viewProfile };
@@ -290,7 +291,8 @@
           <button class="btn primary" id="in-next"></button>
         </div>
       </section>`;
-    const finish = () => { if (user) Store.setIntroSeen(); go(user ? 'explore' : 'login'); };
+    // primo avvio sul dispositivo → registrazione; se qui c'è già stato un account → accesso
+    const finish = () => { if (user) Store.setIntroSeen(); go(user ? 'explore' : Store.hadAccount() ? 'login' : 'register'); };
     const render = () => {
       const s = slides[i];
       $('#in-body').innerHTML = `
@@ -301,7 +303,7 @@
           <p>${s.text}</p>
         </div>`;
       $$('#in-dots i').forEach((d, k) => d.classList.toggle('on', k === i));
-      $('#in-next').textContent = i === slides.length - 1 ? (user ? t('startDriving') : t('enterApp')) : t('next');
+      $('#in-next').textContent = i === slides.length - 1 ? (user ? t('startDriving') : Store.hadAccount() ? t('login') : t('createAccount')) : t('next');
     };
     $('#in-next').onclick = () => { if (i < slides.length - 1) { i++; render(); } else finish(); };
     $('#in-skip').onclick = finish;
@@ -315,10 +317,16 @@
     $$('[data-lang]').forEach((b) => (b.onclick = () => { lang = b.dataset.lang; Store.setLang(lang); route(); }));
   }
 
-  function authShell(title, sub, form, foot) {
+  // opts.full = registrazione a tutto schermo (fascia illustrata sottile) · opts.social = bottone Google
+  function authShell(title, sub, form, foot, opts) {
+    opts = opts || {};
     const r = ROADS[Math.floor(Math.random() * ROADS.length)];
+    const social = opts.social && Auth.google
+      ? `<button type="button" class="btn social" id="g-btn">${GOOGLE_G}<span>${t('continueGoogle')}</span></button>
+         <div class="or"><span>${t('orEmail')}</span></div>`
+      : '';
     app.innerHTML = `
-      <section class="auth">
+      <section class="auth ${opts.full ? 'full' : ''}">
         <div class="auth-art">${roadArt(r, { w: 400, h: 300, num: r.no, stripes: true })}
           <div class="auth-top">${LOGO}${langSwitch()}</div>
         </div>
@@ -326,15 +334,24 @@
           <div class="form-tab"><span>${t('entryForm')}</span></div>
           <h1>${title}</h1>
           <p class="muted">${sub}</p>
+          ${social}
           <form id="auth-form" novalidate>${form}<p class="form-error" id="form-error" role="alert"></p></form>
           <div class="auth-foot">${foot}</div>
         </div>
       </section>`;
     bindLangSwitch();
+    const g = $('#g-btn');
+    if (g) g.onclick = async () => {
+      g.disabled = true; g.classList.add('loading');
+      try { await Auth.signInWithGoogle(); } // reindirizza a Google e poi torna nell'app
+      catch (err) { showErr(err.message); g.disabled = false; g.classList.remove('loading'); }
+    };
     return $('#auth-form');
   }
+  // logo "G" multicolore di Google (uso previsto dalle linee guida del pulsante "Accedi con Google")
+  const GOOGLE_G = '<svg class="g-logo" viewBox="0 0 48 48" aria-hidden="true"><path fill="#EA4335" d="M24 9.5c3.5 0 6.6 1.2 9.1 3.6l6.8-6.8C35.8 2.4 30.2 0 24 0 14.6 0 6.6 5.4 2.7 13.3l7.9 6.1C12.5 13.6 17.8 9.5 24 9.5z"/><path fill="#4285F4" d="M46.5 24.5c0-1.6-.1-3.1-.4-4.5H24v9h12.7c-.6 3-2.3 5.5-4.8 7.2l7.7 6c4.5-4.2 6.9-10.3 6.9-17.7z"/><path fill="#FBBC05" d="M10.5 28.6c-.5-1.4-.8-3-.8-4.6s.3-3.2.8-4.6l-7.9-6.1C1 16.6 0 20.2 0 24s1 7.4 2.7 10.7l7.8-6.1z"/><path fill="#34A853" d="M24 48c6.5 0 11.9-2.1 15.9-5.8l-7.7-6c-2.1 1.4-4.9 2.3-8.2 2.3-6.2 0-11.5-4.2-13.4-9.9l-7.9 6.1C6.6 42.6 14.6 48 24 48z"/></svg>';
   const field = (name, label, type, ph, auto, extra) => `<div class="field"><div class="field-top"><label for="f-${name}">${label}</label>${extra || ''}</div><input id="f-${name}" name="${name}" type="${type}" placeholder="${ph || ''}" autocomplete="${auto || 'off'}" /></div>`;
-  const showErr = (k) => { const el = $('#form-error'); el.classList.remove('info'); el.textContent = k ? t(k) : ''; };
+  const showErr = (k) => { const el = $('#form-error'); el.classList.remove('info'); el.textContent = !k ? '' : k.startsWith('raw:') ? k.slice(4) : t(k); };
   const validEmail = (e) => /^[^\s@]+@[^\s@]+\.[^\s@]+$/.test(e);
 
   function viewLogin() {
@@ -342,7 +359,7 @@
       field('email', t('email'), 'email', 'nome@email.it', 'email') +
       field('password', t('password'), 'password', '••••••', 'current-password', `<a href="#forgot" class="link">${t('forgot')}</a>`) +
       `<button class="btn primary" type="submit">${t('login')}</button>`,
-      `<span>${t('noAccount')} <a href="#register" class="link">${t('register')}</a></span>`);
+      `<span>${t('noAccount')} <a href="#register" class="link">${t('register')}</a></span>`, { social: true });
     f.onsubmit = async (e) => {
       e.preventDefault();
       const d = Object.fromEntries(new FormData(f));
@@ -369,7 +386,7 @@
       `<div class="field-row">${field('password', t('password'), 'password', '••••••', 'new-password')}${field('password2', t('confirmShort'), 'password', '••••••', 'new-password')}</div>` +
       `<label class="check"><input type="checkbox" name="terms" id="f-terms" /><span>${t('acceptTerms')}</span></label>
        <button class="btn primary" type="submit">${t('register')}</button>`,
-      `<span>${t('yesAccount')} <a href="#login" class="link">${t('login')}</a></span>`);
+      `<span>${t('yesAccount')} <a href="#login" class="link">${t('login')}</a></span>`, { social: true, full: true });
     f.onsubmit = async (e) => {
       e.preventDefault();
       const d = Object.fromEntries(new FormData(f));
