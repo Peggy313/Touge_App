@@ -1176,6 +1176,7 @@
           <h2 class="h2">${t('reviews')} <span class="muted small" id="rv-sum"></span></h2>
           ${user ? `<form class="review-form" id="rv-form">
             <div class="row between"><span class="small">${t('yourRating')}</span><span class="stars input" id="rv-stars">${[1, 2, 3, 4, 5].map((i) => `<button type="button" data-v="${i}" aria-label="${i}"><svg viewBox="0 0 24 24">${I.star}</svg></button>`).join('')}</span></div>
+            <div class="car-pick" id="rv-car"></div>
             <textarea id="rv-text" rows="3" maxlength="500" placeholder="${t('reviewPh')}"></textarea>
             <div class="row between"><span class="muted xs">${Auth.cloud ? t('reviewPublic') : t('reviewLocal')}</span><button class="btn primary sm" type="submit">${t('publish')}</button></div>
           </form>` : `<button class="btn ghost rv-guest" id="rv-guest">${icon('star')} ${t('writeReview')}</button>`}
@@ -1330,11 +1331,12 @@
         setTimeout(() => { if (location.hash === '#road-' + r.id && !Auth.current()) openJoinSheet('remind', r); }, 1800);
       }
     }
+    let rvCar = user ? carPicker($('#rv-car'), (id) => (rvCar = id)) : null;
     if (user) $('#rv-form').onsubmit = (e) => {
       e.preventDefault();
       const text = $('#rv-text').value;
       if (!rating || text.trim().length < 5) return toast(t('errReview'));
-      Store.addReview(r.id, { rating, text });
+      Store.addReview(r.id, { rating, text, carId: rvCar });
       $('#rv-text').value = ''; rating = 0; paintStars(); renderReviews(); toast('✓ ' + t('publish'));
     };
 
@@ -1421,13 +1423,14 @@
       <div class="ph-prev"><img src="${prevUrl}" alt="" /></div>
       <ul class="ph-checks"><li class="wait">${t('phChecking')}</li></ul>
       <div class="ph-result" hidden></div>
+      <div class="car-pick" id="ph-car"></div>
       <p class="muted small ph-note">${t('phPublic')}</p>
       <button class="btn primary" id="ph-pub" disabled>${t('publishPhoto')}</button>`, () => URL.revokeObjectURL(prevUrl));
     sh.classList.add('ph-sheet');
     const checks = $('.ph-checks', sh);
     const line = (cls, txt) => { const li = document.createElement('li'); li.className = cls; li.textContent = txt; checks.appendChild(li); return li; };
     const open = () => document.body.contains(sh);
-    let by = '';
+    let by = '', phCar = carPicker($('#ph-car', sh), (id) => (phCar = id));
     const [coords, spot] = await Promise.all([loadRoute(r).then((x) => x.coords), TougePhoto.gps(file)]);
     if (!open()) return;
     checks.innerHTML = '';
@@ -1458,7 +1461,7 @@
       pub.classList.add('loading'); pub.textContent = t('uploading');
       try {
         const blob = await TougePhoto.resize(file, Auth.cloud ? 1600 : 1000, Auth.cloud ? 0.82 : 0.72);
-        await Store.addRoadPhoto(r.id, blob, by);
+        await Store.addRoadPhoto(r.id, blob, by, phCar);
         toast(by ? '🏁 ' + t('phVerifiedToast') : t('phDone'));
         $('[data-close]', sh).click();
         if (onDone) onDone();
@@ -1502,6 +1505,74 @@
       </div>`);
     sh.classList.add('join-sheet');
     $('#pa-go', sh).onclick = () => { pickImage().then((f) => saveProfilePhoto('photo', f)); sh.remove(); };
+  }
+
+  // ───────────── GARAGE DEL PILOTA (più auto) ─────────────
+  // "Con quale auto?": chip solo se le auto sono almeno 2; restituisce l'auto scelta (di base la principale)
+  function carPicker(box, onPick) {
+    const cars = Store.cars();
+    if (!box || cars.length < 2) { if (box) box.innerHTML = ''; return cars[0] ? cars[0].id : null; }
+    let sel = cars[0].id;
+    const paint = () => {
+      box.innerHTML = `<span class="cp-label">${t('withCar')}</span><div class="chips wrap cp">${cars.map((c) => `<button type="button" class="chip ${c.id === sel ? 'on' : ''}" data-cp="${esc(c.id)}">${esc(c.model)}</button>`).join('')}</div>`;
+      $$('[data-cp]', box).forEach((b) => (b.onclick = () => { sel = b.dataset.cp; paint(); onPick(sel); }));
+    };
+    paint();
+    return sel;
+  }
+  function renderGarage(box) {
+    const cars = Store.cars();
+    box.innerHTML = `<div class="garage-scroll">${cars.map((c) => `
+        <button class="car-tile ${c.main ? 'main' : ''}" data-car="${esc(c.id)}">
+          <span class="car-pic">${c.photo ? `<img src="${esc(Store.photoUrl(c.photo))}" alt="" loading="lazy" />` : icon('camera')}${c.main ? `<span class="car-main">★ ${t('mainCar')}</span>` : ''}</span>
+          <b>${esc(c.model)}</b>${c.note ? `<small>${esc(c.note)}</small>` : ''}
+        </button>`).join('')}
+        ${cars.length < 5 ? `<button class="car-tile car-add" data-car="">${icon('plus')}<b>${t('addCar')}</b></button>` : ''}</div>
+      <p class="muted small garage-hint">${cars.length ? t('garageHint') : t('garageEmpty')}</p>`;
+    $$('[data-car]', box).forEach((b) => (b.onclick = () => openCarSheet(b.dataset.car, () => route())));
+  }
+  function openCarSheet(id, onDone) {
+    const car = Store.cars().find((c) => c.id === id) || null;
+    const cur = car && car.photo ? Store.photoUrl(car.photo) : '';
+    let photo; // undefined = lascia com'è, null = togli, File = nuova
+    const sh = openSheet(`
+      <div class="sheet-head"><h2 class="h2">${t(car ? 'editCar' : 'newCar')}</h2><button class="link" data-close>${t('close')}</button></div>
+      <button class="car-edit-pic" id="ce-pic">${cur ? `<img src="${esc(cur)}" alt="" />` : `${icon('camera')}<span>${t('tapPhoto')}</span>`}</button>
+      ${cur ? `<button class="link ce-rm" id="ce-rm">${t('removePhoto')}</button>` : ''}
+      <div class="field"><div class="field-top"><label for="ce-model">${t('carModel')}</label></div><input id="ce-model" type="text" maxlength="60" placeholder="${t('carModelPh')}" value="${esc(car ? car.model : '')}" /></div>
+      <div class="field"><div class="field-top"><label for="ce-note">${t('carNote')}</label></div><input id="ce-note" type="text" maxlength="80" placeholder="${esc(t('carNotePh'))}" value="${esc(car ? car.note : '')}" /></div>
+      <button class="btn primary" id="ce-save">${t('saveCar')}</button>
+      ${car && !car.main ? `<button class="btn ghost" id="ce-main">★ ${t('makeMain')}</button>` : ''}
+      ${car ? `<button class="link danger ce-del" id="ce-del">${t('deleteCar')}</button>` : ''}`);
+    sh.classList.add('car-sheet');
+    let url = null;
+    const pic = $('#ce-pic', sh);
+    const fail = (err) => toast(t(/^err/.test(err && err.message) ? err.message : 'syncError'));
+    pic.onclick = () => pickImage().then((f) => {
+      photo = f;
+      if (url) URL.revokeObjectURL(url);
+      url = URL.createObjectURL(f);
+      pic.innerHTML = `<img src="${url}" alt="" />`;
+    });
+    const rm = $('#ce-rm', sh);
+    if (rm) rm.onclick = () => { photo = null; pic.innerHTML = `${icon('camera')}<span>${t('tapPhoto')}</span>`; rm.remove(); };
+    $('#ce-save', sh).onclick = async (e) => {
+      const b = e.currentTarget, model = $('#ce-model', sh).value.trim();
+      if (!model) { toast(t('errCarModel')); return $('#ce-model', sh).focus(); }
+      b.classList.add('loading');
+      try {
+        const blob = photo ? await TougePhoto.resize(photo, Auth.cloud ? 1400 : 900, Auth.cloud ? 0.82 : 0.72) : photo;
+        await Store.saveCar({ id: car && car.id, model, note: $('#ce-note', sh).value.trim() }, blob);
+        toast(t('carSaved')); sh.remove(); onDone();
+      } catch (err) { b.classList.remove('loading'); fail(err); }
+    };
+    const mk = $('#ce-main', sh);
+    if (mk) mk.onclick = async () => { try { await Store.setMainCar(car.id); sh.remove(); onDone(); } catch (err) { fail(err); } };
+    const del = $('#ce-del', sh);
+    if (del) del.onclick = async () => {
+      if (!del.classList.contains('armed')) { del.classList.add('armed'); del.textContent = t('confirmReport'); setTimeout(() => { del.classList.remove('armed'); del.textContent = t('deleteCar'); }, 4000); return; }
+      try { await Store.deleteCar(car.id); sh.remove(); onDone(); } catch (err) { fail(err); }
+    };
   }
 
   // ───────────── AVVISI E NOTIFICHE ─────────────
@@ -2051,11 +2122,11 @@
       drivenAt: Store.driven()[r.id], plateLabel: Store.isDriven(r.id) ? t(Store.isVerified(r.id) ? 'verified' : 'driven') : t('markDriven'), hairpinsLabel: t('hairpins'),
       region: r.region, country: cname(r.country), tagline: t('tagline'), greet: t('pcGreet'),
     };
-    // la foto dell'auto entra nella cartolina come data URL (serve anche per PNG e SVG scaricati)
-    const me = Auth.current();
-    const carUrl = me && me.carPhoto ? Store.photoUrl(me.carPhoto) : '';
-    const elList = TS.ELEMENTS.filter((k) => k !== 'car' || carUrl);
-    info.carName = (me && me.car) || t('yourCar');
+    // la foto dell'auto entra nella cartolina come data URL (serve anche per PNG e SVG scaricati); si sceglie tra le auto con foto
+    const carList = Auth.current() ? Store.cars().filter((c) => c.photo) : [];
+    let carSel = (carList.find((c) => c.id === saved.car) || carList[0] || {}).id;
+    const elList = TS.ELEMENTS.filter((k) => k !== 'car' || carList.length);
+    const carData = {};
 
     const wrap = document.createElement('div');
     wrap.className = 'sheet-wrap story-sheet';
@@ -2070,6 +2141,7 @@
         </div>
         <div class="pc-preview" id="pc-prev"><span class="kicker">${t('preparing')}</span></div>
         <div class="pc-els">${elList.map((k) => `<button class="chip pc-el" data-el="${k}">${t('pcEl_' + k)}</button>`).join('')}</div>
+        ${carList.length > 1 ? `<div class="pc-cars" id="pc-cars">${carList.map((c) => `<button class="pc-car" data-pcar="${esc(c.id)}"><img src="${esc(Store.photoUrl(c.photo))}" alt="" /><span>${esc(c.model)}</span></button>`).join('')}</div>` : ''}
         <div class="pc-actions" id="pc-actions">
           <button class="btn pc-ig" id="pc-ig">${icon('story')} Instagram</button>
           <button class="btn pc-save" id="pc-save" aria-label="${t('saveImage')}">${t('pcSave')} <span aria-hidden="true">▾</span></button>
@@ -2085,7 +2157,7 @@
 
     const prev = $('#pc-prev', wrap), actions = $('#pc-actions', wrap), igBtn = $('#pc-ig', wrap);
     let story = null; // { key, promise, blob }
-    const key = () => style + JSON.stringify(els) + (info.carPhoto ? 'c' : '');
+    const key = () => style + JSON.stringify(els) + (info.carPhoto ? carSel : '');
     const prepareStory = () => {
       const k = key();
       if (story && story.key === k) return story;
@@ -2099,7 +2171,9 @@
       prev.innerHTML = TS.preview(r, info, style, els);
       $$('.pc-style', wrap).forEach((b) => { const on = b.dataset.style === style; b.classList.toggle('on', on); b.setAttribute('aria-selected', on); });
       $$('.pc-el', wrap).forEach((b) => { b.classList.toggle('on', !!els[b.dataset.el]); b.setAttribute('aria-pressed', !!els[b.dataset.el]); });
-      try { localStorage.setItem(PC_KEY, JSON.stringify({ style, els })); } catch (e) { /* ok */ }
+      const pcc = $('#pc-cars', wrap);
+      if (pcc) { pcc.hidden = !els.car; $$('[data-pcar]', pcc).forEach((b) => b.classList.toggle('on', b.dataset.pcar === carSel)); }
+      try { localStorage.setItem(PC_KEY, JSON.stringify({ style, els, car: carSel })); } catch (e) { /* ok */ }
       clearTimeout(storyTimer); storyTimer = setTimeout(prepareStory, 500);
     };
     const step = (dir) => { const L = TS.STYLES; style = L[(L.indexOf(style) + dir + L.length) % L.length]; draw(); };
@@ -2148,13 +2222,20 @@
       } catch (e) { toast(t('storyError')); } finally { b.classList.remove('loading'); }
     }));
 
-    try { await TS.ready(); draw(); } catch (e) { prev.innerHTML = `<p class="empty">${t('storyError')}</p>`; }
-    if (carUrl) {
+    // carica la foto dell'auto scelta (una volta sola per auto) e ridisegna
+    const useCar = async (id) => {
+      const c = carList.find((x) => x.id === id);
+      if (!c) return;
+      carSel = id; info.carName = c.model || t('yourCar');
       try {
-        info.carPhoto = carUrl.startsWith('data:') ? carUrl : await TougePhoto.toDataURL(await fetch(carUrl).then((x) => x.blob()));
-        if (document.body.contains(wrap)) draw();
+        if (!carData[id]) { const u = Store.photoUrl(c.photo); carData[id] = u.startsWith('data:') ? u : await TougePhoto.toDataURL(await fetch(u).then((x) => x.blob())); }
+        if (carSel === id) { info.carPhoto = carData[id]; if (document.body.contains(wrap)) draw(); }
       } catch (e) { /* senza auto */ }
-    }
+    };
+    $$('[data-pcar]', wrap).forEach((b) => (b.onclick = () => useCar(b.dataset.pcar)));
+
+    try { await TS.ready(); draw(); } catch (e) { prev.innerHTML = `<p class="empty">${t('storyError')}</p>`; }
+    if (carSel) useCar(carSel);
   }
 
   // ───────────── GARAGE ─────────────
@@ -2235,14 +2316,8 @@
       </section>
       ${user.photo ? `<p class="pad-x lic-rm"><button class="link" id="p-photo-rm">${t('removePhoto')}</button></p>` : ''}
 
-      <h2 class="h2 pad-x">${t('yourCar')}</h2>
-      <section class="car-card">
-        ${user.carPhoto
-          ? `<button class="car-img" id="p-car" aria-label="${t('changeCarPhoto')}"><img src="${esc(Store.photoUrl(user.carPhoto))}" alt="${esc(user.car || t('yourCar'))}" /></button>`
-          : `<button class="car-empty" id="p-car">${icon('camera')}<span>${t('addCarPhoto')}</span></button>`}
-        <div class="car-info"><b>${esc(user.car || t('carNoName'))}</b>
-          ${user.carPhoto ? `<span><button class="link" id="p-car2">${t('changeCarPhoto')}</button> · <button class="link" id="p-car-rm">${t('removePhoto')}</button></span>` : ''}</div>
-      </section>
+      <h2 class="h2 pad-x">${t('myGarage')} <span class="muted small">${Store.cars().length}/5</span></h2>
+      <section class="garage-row" id="garage"></section>
 
       <h2 class="h2 pad-x">${t('stats')}</h2>
       <div class="stats four">
@@ -2266,7 +2341,6 @@
         <button class="menu-item" id="m-edit">${icon('edit')}<span>${t('editProfile')}</span></button>
         <form class="edit-form" id="edit-form" hidden>
           ${field('name', t('name'), 'text', t('namePh'))}
-          ${field('car', t('car'), 'text', t('carPh'))}
           <button class="btn primary sm" type="submit">${t('save')}</button>
         </form>
         <button class="menu-item" id="m-logout">${icon('logout')}<span>${t('logout')}</span></button>
@@ -2277,16 +2351,15 @@
     bindLangSwitch();
     renderNotif($('#notif'));
     const ef = $('#edit-form');
-    ef.name.value = user.name; ef.car.value = user.car || '';
+    ef.name.value = user.name;
     $('#m-edit').onclick = () => (ef.hidden = !ef.hidden);
     $('#p-photo').onclick = () => pickImage().then((f) => saveProfilePhoto('photo', f));
-    $$('#p-car, #p-car2').forEach((b) => (b.onclick = () => pickImage().then((f) => saveProfilePhoto('carPhoto', f))));
     const rmP = $('#p-photo-rm'); if (rmP) rmP.onclick = () => saveProfilePhoto('photo', null);
-    const rmC = $('#p-car-rm'); if (rmC) rmC.onclick = () => saveProfilePhoto('carPhoto', null);
+    renderGarage($('#garage'));
     ef.onsubmit = async (e) => {
       e.preventDefault();
       if (!ef.name.value.trim()) return toast(t('errName'));
-      await Auth.update({ name: ef.name.value.trim(), car: ef.car.value.trim() });
+      await Auth.update({ name: ef.name.value.trim() });
       toast(t('saved')); route();
     };
     $('#m-logout').onclick = async () => { await Auth.logout(); go('explore'); };

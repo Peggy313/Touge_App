@@ -1039,3 +1039,45 @@ body.auth-mode .joinbar { display: none; }
 .switch input:checked + span { background: var(--yellow); border-color: var(--ink); }
 .switch input:checked + span::after { left: 25px; background: var(--ink); }
 .switch input:focus-visible + span { outline: 2px solid var(--yellow); outline-offset: 2px; }
+
+/* ───── Garage del pilota (più auto) ───── */
+.garage-scroll { display: flex; gap: 12px; overflow-x: auto; scrollbar-width: none; padding: 0 16px 10px; scroll-snap-type: x mandatory; }
+.garage-scroll::-webkit-scrollbar { display: none; }
+.car-tile { flex: 0 0 min(72%, 260px); display: flex; flex-direction: column; gap: 2px; padding: 6px 6px 10px; background: var(--paper); color: var(--ink); text-align: left; box-shadow: 4px 4px 0 #000; scroll-snap-align: start; min-width: 0; }
+.car-tile.main { box-shadow: 4px 4px 0 var(--red); }
+.car-pic { position: relative; display: grid; place-items: center; aspect-ratio: 16 / 10; margin-bottom: 6px; border: 2px solid var(--ink); background: repeating-linear-gradient(-45deg, var(--asphalt2) 0 14px, var(--asphalt3) 14px 28px); color: var(--yellow); overflow: hidden; }
+.car-pic img { width: 100%; height: 100%; object-fit: cover; display: block; }
+.car-pic > .ic { width: 34px; height: 34px; }
+.car-main { position: absolute; left: 6px; top: 6px; padding: 1px 8px; background: var(--yellow); color: var(--ink); border: 2px solid var(--ink); font-family: var(--display); font-size: 14px; letter-spacing: .05em; text-transform: uppercase; }
+.car-tile b { font-family: var(--display); font-weight: 400; font-size: 20px; line-height: 1.1; text-transform: uppercase; white-space: nowrap; overflow: hidden; text-overflow: ellipsis; }
+.car-tile small { font-size: 14px; color: var(--ink-soft); white-space: nowrap; overflow: hidden; text-overflow: ellipsis; }
+.car-tile.car-add { flex-basis: 150px; align-items: center; justify-content: center; gap: 8px; background: repeating-linear-gradient(-45deg, var(--asphalt2) 0 14px, var(--asphalt3) 14px 28px); color: var(--paper); border: 2px dashed var(--yellow); box-shadow: none; text-align: center; }
+.car-tile.car-add .ic { width: 32px; height: 32px; color: var(--yellow); }
+.car-tile.car-add b { font-size: 18px; white-space: normal; }
+.garage-hint { margin: 4px 16px 0; }
+
+.car-sheet .field { margin-top: 12px; }
+.car-edit-pic { display: grid; place-items: center; gap: 6px; width: 100%; aspect-ratio: 16 / 9; max-height: 30vh; margin-top: 8px; padding: 0; border: 3px solid var(--ink); box-shadow: 4px 4px 0 var(--ink); background: repeating-linear-gradient(-45deg, #e7dcc4 0 14px, #ddd1b6 14px 28px); color: var(--ink); overflow: hidden; font-family: var(--display); font-size: 17px; letter-spacing: .04em; text-transform: uppercase; }
+.car-edit-pic img { width: 100%; height: 100%; object-fit: cover; display: block; }
+.car-edit-pic .ic { width: 34px; height: 34px; }
+.ce-rm { display: block; margin: 10px 0 0 auto; font-size: 14px; }
+.car-sheet .btn.primary { margin-top: 16px; }
+.car-sheet .btn.ghost { margin-top: 10px; color: var(--ink); }
+.ce-del { display: block; margin: 14px auto 0; font-size: 15px; }
+
+.car-pick:empty { display: none; }
+.car-pick { margin: 10px 0; }
+.cp-label { display: block; margin-bottom: 6px; font-family: var(--mono); font-size: 13px; font-weight: 700; letter-spacing: .08em; text-transform: uppercase; }
+.car-pick .chips.wrap { gap: 6px; }
+.car-pick .chip { font-size: 14px; padding: 6px 12px; max-width: 100%; overflow: hidden; text-overflow: ellipsis; }
+.review-form .chip { background: var(--asphalt3); color: var(--text); }
+.review-form .chip.on { background: var(--yellow); color: var(--ink); }
+
+.pc-cars { display: flex; gap: 8px; overflow-x: auto; scrollbar-width: none; margin: 8px 0 0; padding-bottom: 2px; }
+.pc-cars[hidden] { display: none; }
+.pc-cars::-webkit-scrollbar { display: none; }
+.pc-car { flex: none; display: flex; align-items: center; gap: 6px; padding: 4px 10px 4px 4px; background: rgba(0,0,0,.08); color: var(--ink); border: 2px solid transparent; font-size: 14px; font-weight: 700; max-width: 200px; }
+.pc-car img { width: 40px; height: 28px; object-fit: cover; border: 1px solid var(--ink); flex: none; }
+.pc-car span { white-space: nowrap; overflow: hidden; text-overflow: ellipsis; }
+.pc-car.on { background: var(--yellow); border-color: var(--ink); }
+.garage-scroll { scroll-padding: 0 16px; }

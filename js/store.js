@@ -154,7 +154,7 @@
         const s = read(K.session, null);
         if (!s) return;
         const users = read(K.users, {});
-        if (users[s.email]) { dropImg(users[s.email].photo); dropImg(users[s.email].carPhoto); }
+        if (users[s.email]) { dropImg(users[s.email].photo); dropImg(users[s.email].carPhoto); (users[s.email].cars || []).forEach((c) => dropImg(c.photo)); }
         delete users[s.email];
         write(K.users, users);
         remove(K.data(s.email));
@@ -225,11 +225,12 @@
         rememberRoadReport(me.email, roadId, status);
       },
       loadReviews: async (roadId) => Store.reviews(roadId),
-      addReview(roadId, { rating, text }) {
+      addReview(roadId, { rating, text, carId }) {
         const me = Auth.current();
         const all = read(K.reviews, {});
+        const car = (this.cars().find((c) => c.id === carId) || {}).model || me.car;
         all[roadId] = all[roadId] || [];
-        all[roadId].unshift({ id: randomHex(6), email: me.email, user: me.name, car: me.car, rating, text: text.trim(), date: new Date().toISOString().slice(0, 10) });
+        all[roadId].unshift({ id: randomHex(6), email: me.email, user: me.name, car, rating, text: text.trim(), date: new Date().toISOString().slice(0, 10) });
         write(K.reviews, all);
       },
       deleteReview(roadId, reviewId) {
@@ -256,11 +257,44 @@
         dropImg(me[kind]);
         await Auth.update({ [kind]: ref });
       },
+
+      // ── garage: fino a 5 auto, la prima è la principale (= car / carPhoto del profilo) ──
+      _carsRaw() {
+        const s = read(K.session, null), u = s && read(K.users, {})[s.email];
+        if (!u) return [];
+        return u.cars || (u.car ? [{ id: 'c0', model: u.car, note: '', photo: u.carPhoto || '' }] : []);
+      },
+      _saveCars(list) {
+        const s = read(K.session, null), users = read(K.users, {}), u = s && users[s.email];
+        if (!u) return;
+        u.cars = list; u.car = list[0] ? list[0].model : ''; u.carPhoto = list[0] ? list[0].photo : '';
+        write(K.users, users);
+      },
+      cars() { return this._carsRaw().map((c, i) => Object.assign({}, c, { main: i === 0 })); },
+      // photo: undefined = lascia, null = togli, Blob = sostituisci
+      async saveCar(car, photo) {
+        const list = this._carsRaw();
+        let c = car.id ? list.find((x) => x.id === car.id) : null;
+        if (!c) { if (list.length >= 5) throw new Error('errTooManyCars'); c = { id: 'c' + randomHex(4), model: '', note: '', photo: '' }; list.push(c); }
+        c.model = String(car.model || '').trim().slice(0, 60); c.note = String(car.note || '').trim().slice(0, 80);
+        if (photo !== undefined) { const ref = photo ? saveImg(await window.TougePhoto.toDataURL(photo)) : ''; dropImg(c.photo); c.photo = ref; }
+        this._saveCars(list);
+        return c.id;
+      },
+      async deleteCar(id) {
+        const list = this._carsRaw(), c = list.find((x) => x.id === id);
+        if (c) dropImg(c.photo);
+        this._saveCars(list.filter((x) => x.id !== id));
+      },
+      async setMainCar(id) {
+        const list = this._carsRaw(), i = list.findIndex((x) => x.id === id);
+        if (i > 0) { list.unshift(list.splice(i, 1)[0]); this._saveCars(list); }
+      },
       roadPhotos(roadId) {
         const me = Auth.current(), users = read(K.users, {}), hidden = read('touge.reportedPhotos', []);
         return (read('touge.photos', {})[roadId] || []).filter((p) => !hidden.includes(p.id)).map((p) => {
           const u = users[p.email] || {};
-          return { id: p.id, url: localUrl(p.img), user: u.name || 'Pilota', car: u.car || '', userPhoto: localUrl(u.photo), avatar: u.avatar || 0,
+          return { id: p.id, url: localUrl(p.img), user: u.name || 'Pilota', car: p.car || u.car || '', userPhoto: localUrl(u.photo), avatar: u.avatar || 0,
             verified: !!p.verified, date: p.date, mine: !!me && p.email === me.email };
         });
       },
@@ -270,14 +304,15 @@
         return me ? (read('touge.photos', {})[roadId] || []).find((p) => p.email === me.email) || null : null;
       },
       isVerified(roadId) { const p = this.myPhoto(roadId); return !!(p && p.verified); },
-      async addRoadPhoto(roadId, blob, verifiedBy) {
+      async addRoadPhoto(roadId, blob, verifiedBy, carId) {
         const me = Auth.current();
         if (!me) throw new Error('auth');
         if (!this.isDriven(roadId)) throw new Error('errPhotoDriven');
         const img = saveImg(await window.TougePhoto.toDataURL(blob));
+        const car = (this.cars().find((c) => c.id === carId) || {}).model || '';
         await this.deleteRoadPhoto(roadId);
         const all = read('touge.photos', {});
-        all[roadId] = [{ id: randomHex(6), email: me.email, img, verified: !!verifiedBy, by: verifiedBy || '', date: today() }, ...(all[roadId] || [])];
+        all[roadId] = [{ id: randomHex(6), email: me.email, img, car, verified: !!verifiedBy, by: verifiedBy || '', date: today() }, ...(all[roadId] || [])];
         write('touge.photos', all);
       },
       async deleteRoadPhoto(roadId) {
@@ -346,7 +381,7 @@
       auth: { persistSession: true, autoRefreshToken: true, detectSessionInUrl: true },
     });
     const siteUrl = location.origin + location.pathname;
-    const empty = () => ({ user: null, profile: null, favorites: [], driven: {}, myReviews: 0, photos: {}, trips: [], notify: null });
+    const empty = () => ({ user: null, profile: null, favorites: [], driven: {}, myReviews: 0, photos: {}, trips: [], notify: null, cars: null });
     let publicTripsList = [];
     let reportedTrips = new Set();
     function mapTrip(x) {
@@ -448,7 +483,15 @@
           .then((res) => { if (res && !res.error) reportedTrips = new Set(res.data.map((x) => x.trip_id)); }, () => {}),
         sb.from('notify_prefs').select('*').eq('user_id', user.id).maybeSingle()
           .then((res) => { if (res && !res.error && res.data) C.notify = res.data; }, () => {}),
+        // garage (null = tabella cars non ancora creata: si usa l'auto del profilo)
+        sb.from('cars').select('*').eq('user_id', user.id).order('position').order('created_at')
+          .then((res) => { C.cars = res && !res.error ? res.data : null; }, () => { C.cars = null; }),
       ]);
+      // chi aveva già un'auto nel profilo la ritrova nel garage
+      if (C.cars && !C.cars.length && C.profile.car) {
+        const res = await sb.from('cars').insert({ user_id: user.id, model: C.profile.car.slice(0, 60), photo: C.profile.car_photo || '', position: 0 }).select().single();
+        if (!res.error) C.cars = [res.data];
+      }
 
       const legacy = read(K.data(norm(user.email)), null);
       if (legacy && !legacy.migrated && (Object.keys(legacy.driven || {}).length || (legacy.favorites || []).length)) {
@@ -586,13 +629,16 @@
         }
         return Store.reviews(roadId);
       },
-      addReview(roadId, { rating, text }) {
+      addReview(roadId, { rating, text, carId }) {
         if (!C.user) return;
-        const tmp = { id: 'tmp-' + randomHex(4), user: C.profile.name, car: C.profile.car, photo: photoUrl(C.profile.photo), rating, text: text.trim(), date: new Date().toISOString().slice(0, 10), mine: true };
+        const car = (C.cars || []).find((c) => c.id === carId);
+        const tmp = { id: 'tmp-' + randomHex(4), user: C.profile.name, car: car ? car.model : C.profile.car, photo: photoUrl(C.profile.photo), rating, text: text.trim(), date: new Date().toISOString().slice(0, 10), mine: true };
         reviewsByRoad[roadId] = [tmp, ...(reviewsByRoad[roadId] || [])];
         const x = (ratings[roadId] = ratings[roadId] || { sum: 0, count: 0 }); x.sum += rating; x.count += 1;
         C.myReviews += 1;
-        run('review', sb.from('reviews').insert({ road_id: roadId, user_id: C.user.id, rating, text: text.trim(), author_name: C.profile.name, author_car: C.profile.car }).select().single())
+        const row = { road_id: roadId, user_id: C.user.id, rating, text: text.trim(), author_name: C.profile.name, author_car: tmp.car };
+        if (car) row.car_id = car.id;
+        run('review', sb.from('reviews').insert(row).select().single())
           .then((res) => { if (res && res.data) tmp.id = res.data.id; });
       },
       deleteReview(roadId, reviewId) {
@@ -620,6 +666,56 @@
         C.profile[col] = path;
         dropFile(old);
       },
+      // ── garage: fino a 5 auto; la prima è la principale e resta copiata nel profilo (car / car_photo) ──
+      cars() {
+        const list = C.cars || (C.profile && C.profile.car ? [{ id: 'profile', model: C.profile.car, note: '', photo: C.profile.car_photo || '' }] : []);
+        return list.map((c, i) => ({ id: c.id, model: c.model, note: c.note || '', photo: c.photo || '', main: i === 0 }));
+      },
+      async _syncMain() {
+        const m = (C.cars || [])[0], car = m ? m.model : '', photo = m ? m.photo : '';
+        if (car === (C.profile.car || '') && photo === (C.profile.car_photo || '')) return;
+        const { error } = await sb.from('profiles').update({ car, car_photo: photo }).eq('id', C.user.id);
+        if (error) { fail('main-car')(error); throw new Error('errNetwork'); }
+        C.profile.car = car; C.profile.car_photo = photo;
+      },
+      // photo: undefined = lascia, null = togli, Blob = sostituisci
+      async saveCar(car, photo) {
+        if (!C.user) throw new Error('auth');
+        if (!C.cars) throw new Error('errGarageSetup');
+        const old = car.id ? C.cars.find((c) => c.id === car.id) : null;
+        if (!old && C.cars.length >= 5) throw new Error('errTooManyCars');
+        const row = { model: String(car.model || '').trim().slice(0, 60), note: String(car.note || '').trim().slice(0, 80) };
+        let path = null;
+        if (photo) { path = `${C.user.id}/car-${randomHex(6)}.jpg`; await upload(path, photo); row.photo = path; }
+        else if (photo === null) row.photo = '';
+        if (!old) row.position = C.cars.length ? Math.max(...C.cars.map((c) => c.position || 0)) + 1 : 0;
+        const q = old ? sb.from('cars').update(row).eq('id', old.id) : sb.from('cars').insert(Object.assign({ user_id: C.user.id }, row));
+        const { data, error } = await q.select().single();
+        if (error) { if (path) dropFile(path); fail('car')(error); throw new Error(/too_many/.test(error.message || '') ? 'errTooManyCars' : 'errNetwork'); }
+        if (old && photo !== undefined && old.photo) dropFile(old.photo);
+        C.cars = old ? C.cars.map((c) => (c.id === old.id ? data : c)) : C.cars.concat(data);
+        await Store._syncMain();
+        return data.id;
+      },
+      async deleteCar(id) {
+        const old = (C.cars || []).find((c) => c.id === id);
+        if (!old) return;
+        const { error } = await sb.from('cars').delete().eq('id', id);
+        if (error) { fail('car-delete')(error); throw new Error('errNetwork'); }
+        if (old.photo) dropFile(old.photo);
+        C.cars = C.cars.filter((c) => c.id !== id);
+        await Store._syncMain();
+      },
+      async setMainCar(id) {
+        const list = (C.cars || []).slice(), i = list.findIndex((c) => c.id === id);
+        if (i <= 0) return;
+        list.unshift(list.splice(i, 1)[0]);
+        const res = await Promise.all(list.map((c, k) => sb.from('cars').update({ position: k }).eq('id', c.id)));
+        if (res.some((r) => r.error)) { fail('car-order')(res.find((r) => r.error).error); throw new Error('errNetwork'); }
+        C.cars = list.map((c, k) => Object.assign({}, c, { position: k }));
+        await Store._syncMain();
+      },
+
       roadPhotos(roadId) { return (photosByRoad[roadId] || []).filter((p) => !reportedPhotos.has(p.id)); },
       async loadRoadPhotos(roadId) {
         const { data, error } = await sb.from('road_photos').select('*').eq('road_id', roadId).order('created_at', { ascending: false }).limit(60);
@@ -628,14 +724,15 @@
       },
       myPhoto(roadId) { return C.photos[roadId] || null; },
       isVerified(roadId) { return !!(C.photos[roadId] && C.photos[roadId].verified); },
-      async addRoadPhoto(roadId, blob, verifiedBy) {
+      async addRoadPhoto(roadId, blob, verifiedBy, carId) {
         if (!C.user) throw new Error('auth');
         if (!C.driven[roadId]) throw new Error('errPhotoDriven');
         const path = `${C.user.id}/road-${roadId}-${randomHex(6)}.jpg`;
         await upload(path, blob);
         await Store.deleteRoadPhoto(roadId); // una sola foto per strada: la nuova sostituisce la vecchia
-        const { data, error } = await sb.from('road_photos')
-          .insert({ road_id: roadId, user_id: C.user.id, path, verified: !!verifiedBy, verified_by: verifiedBy || '' }).select().single();
+        const row = { road_id: roadId, user_id: C.user.id, path, verified: !!verifiedBy, verified_by: verifiedBy || '' };
+        if ((C.cars || []).some((c) => c.id === carId)) row.car_id = carId;
+        const { data, error } = await sb.from('road_photos').insert(row).select().single();
         if (error) {
           dropFile(path); fail('road-photo')(error);
           const m = error.message || '';
