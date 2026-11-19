@@ -1,0 +1,13 @@
+{
+  "name": "TOUGE App",
+  "short_name": "TOUGE",
+  "description": "Collezione di passi di montagna e strade panoramiche.",
+  "start_url": "./index.html",
+  "display": "standalone",
+  "orientation": "portrait",
+  "background_color": "#0b0b0f",
+  "theme_color": "#0b0b0f",
+  "icons": [
+    { "src": "icons/icon.svg", "sizes": "any", "type": "image/svg+xml", "purpose": "any maskable" }
+  ]
+}

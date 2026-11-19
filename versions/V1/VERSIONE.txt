@@ -1,0 +1,9 @@
+﻿TOUGE App - V1
+Salvata il 19/11/2026.
+Link telefono: https://claude.ai/artifact/VYZd3sCTigt1S4JJv3AgQB (versione pubblicata etichettata "V1")
+
+Contenuto: apertura animata (si entra con un tocco), presentazione "Cos'e' TOUGE?" a step,
+accesso/registrazione, Esplora, Mappa con targhe rally, pagina strada con tracciato e recensioni,
+Le tue strade (collezione + chilometri, placca "Strada guidata"), Pilota. 59 strade, IT/EN.
+
+Per aprirla: powershell -ExecutionPolicy Bypass -File serve.ps1  ->  http://localhost:5173

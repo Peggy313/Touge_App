@@ -1,0 +1,25 @@
+<title>TOUGE App</title>
+<meta name="theme-color" content="#0f0f11" />
+<!-- Versione per il telefono pubblicata come Artifact claude.ai.
+     Differenze da index.html: niente <head> (lo aggiunge la piattaforma), CSS di Leaflet locale,
+     mappe vettoriali + tracciati pre-calcolati (window.TOUGE_ARTIFACT). -->
+<link rel="preconnect" href="https://fonts.googleapis.com" />
+<link rel="preconnect" href="https://fonts.gstatic.com" crossorigin />
+<link href="https://fonts.googleapis.com/css2?family=Anton&family=League+Gothic&family=Josefin+Sans:wght@700&family=Barlow:wght@400;500;600;700&family=Bodoni+Moda:ital,opsz,wght@0,6..96,400;1,6..96,400&family=Space+Mono:wght@400;700&display=swap" rel="stylesheet" />
+<link href="https://fonts.googleapis.com/css2?family=Noto+Sans+JP:wght@900&text=%E5%B3%A0%E9%81%93%E8%B5%B0%E3%82%8A%E5%B1%8B&display=swap" rel="stylesheet" />
+<link rel="stylesheet" href="css/leaflet.css" />
+<link rel="stylesheet" href="css/style.css" />
+<style>:root { color-scheme: dark; background: #0f0f11; --flow-top: 0px; }</style>
+
+<div id="app" class="app"></div>
+<nav id="tabbar" class="tabbar" hidden></nav>
+<div id="toast" class="toast" role="status" aria-live="polite"></div>
+
+<script>window.TOUGE_ARTIFACT = true;</script>
+<script src="https://unpkg.com/leaflet@1.9.4/dist/leaflet.js"></script>
+<script src="https://unpkg.com/topojson-client@3.1.0/dist/topojson-client.min.js"></script>
+<script src="js/data.js"></script>
+<script src="js/i18n.js"></script>
+<script src="js/store.js"></script>
+<script src="js/art.js"></script>
+<script src="js/app.js"></script>
