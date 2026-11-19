@@ -723,3 +723,5 @@ body.auth-mode .joinbar { display: none; }
 .doc-body .link { color: var(--red); }
 .doc-body mark { background: var(--yellow); padding: 0 4px; font-weight: 700; }
 .doc-meta { font-family: var(--mono); font-size: 13px; color: var(--ink-soft); }
+.doc-body.in-sheet { margin: 6px 0 0; padding: 0; border: 0; box-shadow: none; background: transparent; }
+.privacy-sheet .sheet { max-height: 90vh; }

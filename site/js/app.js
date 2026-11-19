@@ -281,19 +281,30 @@
   }
 
   // ───────────── PRIVACY ─────────────
-  function viewPrivacy() {
+  function privacyHTML() {
     const P = window.PRIVACY || {};
     const email = (window.TOUGE_CONFIG && window.TOUGE_CONFIG.contactEmail) || '';
     const contact = email ? `<a class="link" href="mailto:${esc(email)}">${esc(email)}</a>` : `<mark>${t('privacyNoEmail')}</mark>`;
+    return (P[lang] || P.it || '').replace(/\{EMAIL\}/g, contact);
+  }
+  function viewPrivacy() {
     app.innerHTML = `
       <section class="doc">
         <header class="top doc-top">
           <button class="round-btn back-inline" id="doc-back" aria-label="back">${icon('back')}</button>
           <h1 class="h1">${t('privacy')}</h1>
         </header>
-        <article class="doc-body">${(P[lang] || P.it || '').replace(/\{EMAIL\}/g, contact)}</article>
+        <article class="doc-body">${privacyHTML()}</article>
       </section>`;
     $('#doc-back').onclick = () => (history.length > 1 ? history.back() : go('explore'));
+  }
+  // dalla registrazione: l'informativa si apre in un foglio sopra il modulo, così i campi restano compilati
+  function openPrivacySheet() {
+    const sh = openSheet(`
+      <div class="sheet-head"><h2 class="h2">${t('privacy')}</h2><button class="link" data-close>${t('close')}</button></div>
+      <article class="doc-body in-sheet">${privacyHTML()}</article>
+      <button class="btn primary" data-close>${t('close')}</button>`);
+    sh.classList.add('privacy-sheet');
   }
 
   // ───────────── AUTH ─────────────
@@ -491,6 +502,7 @@
       `<label class="check"><input type="checkbox" name="terms" id="f-terms" /><span>${t('acceptTerms')}</span></label>
        <button class="btn primary" type="submit">${t('register')}</button>`,
       `<span>${t('yesAccount')} <a href="#login" class="link">${t('login')}</a></span><a href="#explore" class="link muted">${t('exploreFirst')} →</a>`, { social: true, full: true });
+    $$('a[href="#privacy"]', f).forEach((a) => (a.onclick = (e) => { e.preventDefault(); e.stopPropagation(); openPrivacySheet(); }));
     f.onsubmit = async (e) => {
       e.preventDefault();
       const d = Object.fromEntries(new FormData(f));
@@ -664,7 +676,7 @@
     app.innerHTML = `
       <header class="top">
         <div><p class="muted small">${t('exploreSub')}</p><h1 class="h1">${user ? `${t('hello')}, ${esc(user.name)}` : t('helloGuest')}</h1></div>
-        ${user ? `<a href="#profile" aria-label="${t('profile')}">${avatar(user, 44)}</a>` : `<button class="enter-btn" id="enter">${t('enter')}</button>`}
+        ${user ? `<a href="#profile" aria-label="${t('profile')}">${avatar(user, 44)}</a>` : `<button class="enter-btn" id="enter">${t('register')}</button>`}
       </header>
       <div class="search-row">
         <label class="search">${icon('search')}<input id="q" type="search" placeholder="${t('search')}" value="${esc(filters.q)}" /></label>

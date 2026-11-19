@@ -8,7 +8,7 @@ App web mobile-first (installabile come PWA) che raccoglie passi di montagna e s
 - Testa su **iPhone 16 (393×852)**: verifica sempre a quella misura (e a 375×667), niente scroll orizzontale; login/registrazione/intro devono stare in una schermata senza scorrere.
 - **Leggibilità prima di tutto.**
 - Sul PC **non ci sono Node, Python né Git**: niente build tool. Per dashboard esterne (Supabase, GitHub) dagli istruzioni click-per-click.
-- Non è sviluppatore: alla fine di ogni modifica digli **quali file ricaricare su GitHub e in quale cartella**.
+- Non è sviluppatore: alla fine di ogni modifica digli **quali file ricaricare su GitHub e in quale cartella** (tabella cartella → file) e aggiorna **`DA-CARICARE.md`** (elenco cumulativo dei file non ancora caricati; si svuota solo quando l'utente dice "caricato").
 
 ## Stack e file
 HTML/CSS/JS puro, nessun bundler. Script caricati in ordine in `index.html`:
