@@ -530,7 +530,7 @@
       <article class="card ${dr ? 'is-driven' : ''}" data-go="${r.id}">
         <div class="card-art">${roadArt(r, { w: 320, h: 190, num: r.no })}
           <span class="plate">${dr ? CHK : ''}No.${r.no}</span>
-          <span class="card-alt">${fmt(r.alt)}<small>m</small></span>
+          <span class="card-alt"><b>${fmt(r.alt)}</b><small>m</small></span>
           ${dr ? `<span class="stamp">${drivenPlate(r)}</span>` : ''}
           <button class="fav-btn ${fav ? 'on' : ''}" data-fav="${r.id}" aria-label="${t('favorite')}">${icon('heart')}</button>
         </div>
@@ -766,7 +766,7 @@
         </div>
         <div class="share-row">
           <button class="act share" id="a-share-road">${icon('share')}<span>${t('shareRoad')}</span></button>
-          <button class="act share story ${dr ? '' : 'locked'}" id="a-share-story">${icon('story')}<span>${dr ? t('sharePlate') : t('sharePlateLocked')}</span></button>
+          <button class="act share story" id="a-share-story">${icon('story')}<span>${t('sharePlate')}</span></button>
         </div>
 
         <div class="stats">
@@ -815,15 +815,10 @@
       e.currentTarget.classList.toggle('on', on);
       e.currentTarget.querySelector('span').textContent = on ? t('isDriven') : t('markDriven');
       if (on) toast('🏁 ' + r.name);
-      const sb = $('#a-share-story');
-      sb.classList.toggle('locked', !on); sb.classList.toggle('pulse', on);
-      sb.querySelector('span').textContent = on ? t('sharePlate') : t('sharePlateLocked');
     };
     $('#a-share-road').onclick = () => shareRoad(r);
-    $('#a-share-story').onclick = (e) => {
-      if (e.currentTarget.classList.contains('locked')) return toast(t('sharePlateHint'));
-      openStorySheet(r);
-    };
+    // la storia si può condividere sempre: con la placca "Strada guidata" se l'hai percorsa, "Strada da guidare" altrimenti
+    $('#a-share-story').onclick = () => openStorySheet(r);
 
     // recensioni
     let rating = 0;
@@ -932,7 +927,7 @@
     let blob = null, url = null;
     try {
       blob = await TougeShare.plateStory(r, {
-        drivenAt: Store.driven()[r.id], drivenLabel: t('driven'), hairpinsLabel: t('hairpins'),
+        drivenAt: Store.driven()[r.id], drivenLabel: Store.isDriven(r.id) ? t('driven') : t('markDriven'), hairpinsLabel: t('hairpins'),
         region: r.region, country: cname(r.country), tagline: t('tagline'),
       });
     } catch (e) { $('#story-prev', wrap).innerHTML = `<p class="empty">${t('storyError')}</p>`; return; }

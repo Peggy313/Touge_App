@@ -9,4 +9,6 @@
 window.TOUGE_CONFIG = {
   supabaseUrl: 'https://lvjifupcmfbxmzjtpvry.supabase.co',
   supabaseAnonKey: 'sb_publishable_GPGYFRxwTkzN4vJeeQ0hEw_TUFAMesN', // chiave "publishable" (pubblica per design)
+  // true solo dopo aver attivato il provider Google in Supabase (Authentication → Sign In / Providers → Google)
+  googleLogin: false,
 };

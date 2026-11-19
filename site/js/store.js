@@ -52,6 +52,9 @@
     setLang(l) { write(K.lang, l); },
     onboarded() { return read(K.onboarded, false); },
     setOnboarded() { write(K.onboarded, true); },
+    // su questo dispositivo c'è già stato un account? (decide registrazione vs accesso)
+    hadAccount() { return read('touge.hadAccount', false); },
+    setHadAccount() { if (!read('touge.hadAccount', false)) write('touge.hadAccount', true); },
     cachedRoute(id) { return read(K.routes, {})[id] || null; },
     cacheRoute(id, coords) { const all = read(K.routes, {}); all[id] = coords; write(K.routes, all); },
   };
@@ -60,6 +63,7 @@
   function buildLocal() {
     const Auth = {
       cloud: false,
+      google: false,
       init: async () => {},
       current() {
         const s = read(K.session, null);
@@ -189,6 +193,22 @@
     const fail = (where) => (err) => { console.warn('[TOUGE sync]', where, err); emit('touge:sync-error', where); };
     const run = (where, p) => p.then((res) => { if (res && res.error) fail(where)(res.error); return res; }, fail(where));
 
+    // Traduce gli errori di Supabase Auth in messaggi dell'app; se sconosciuti mostra il testo originale.
+    function authError(error) {
+      const code = error.code || '', msg = error.message || '', st = error.status || 0;
+      console.warn('[TOUGE auth]', st, code, msg);
+      if (code === 'user_already_exists' || code === 'email_exists' || /already registered|exists/i.test(msg)) return 'errExists';
+      if (code === 'invalid_credentials') return 'errLogin';
+      if (code === 'email_not_confirmed' || /not confirmed/i.test(msg)) return 'errConfirm';
+      if (code === 'weak_password' || /password/i.test(msg) && st === 422) return 'errPwd';
+      if (code === 'email_address_invalid' || /invalid.*email|email.*invalid/i.test(msg)) return 'errEmail';
+      if (code === 'email_address_not_authorized' || /not authorized/i.test(msg)) return 'errEmailNotAuth';
+      if (/rate limit/i.test(msg) || code.startsWith('over_') || st === 429) return 'errRateLimit';
+      if (/sending.*email|confirmation email|smtp/i.test(msg)) return 'errEmailSend';
+      if (!st || error.name === 'AuthRetryableFetchError') return 'errNetwork';
+      return 'raw:' + msg;
+    }
+
     function mapReview(r) {
       return {
         id: r.id, user: r.author_name || 'Pilota', car: r.author_car || '', rating: r.rating, text: r.text,
@@ -233,6 +253,11 @@
 
     const Auth = {
       cloud: true,
+      google: !!cfg.googleLogin, // si accende in js/config.js dopo aver configurato Google su Supabase
+      async signInWithGoogle() {
+        const { error } = await sb.auth.signInWithOAuth({ provider: 'google', options: { redirectTo: siteUrl } });
+        if (error) throw new Error(authError(error));
+      },
       async init() {
         sb.auth.onAuthStateChange((event) => { if (event === 'PASSWORD_RECOVERY') emit('touge:recovery'); });
         const { data } = await sb.auth.getSession();
@@ -248,7 +273,7 @@
           email: norm(email), password,
           options: { data: { name: name.trim(), car: (car || '').trim(), avatar }, emailRedirectTo: siteUrl },
         });
-        if (error) throw new Error(/registered|exists/i.test(error.message) ? 'errExists' : /password/i.test(error.message) ? 'errPwd' : 'errNetwork');
+        if (error) throw new Error(authError(error));
         if (data.user && Array.isArray(data.user.identities) && data.user.identities.length === 0) throw new Error('errExists');
         if (!data.session) throw new Error('checkEmail'); // conferma email attiva su Supabase
         await loadUser(data.user);
@@ -256,18 +281,18 @@
       },
       async login(email, password) {
         const { data, error } = await sb.auth.signInWithPassword({ email: norm(email), password });
-        if (error) throw new Error(/confirm/i.test(error.message) ? 'errConfirm' : /invalid/i.test(error.message) ? 'errLogin' : 'errNetwork');
+        if (error) throw new Error(authError(error));
         await loadUser(data.user);
         return this.current();
       },
       // In cloud il reset avviene via email: qui si invia il link.
       async resetPassword(email) {
         const { error } = await sb.auth.resetPasswordForEmail(norm(email), { redirectTo: siteUrl });
-        if (error) throw new Error('errNetwork');
+        if (error) throw new Error(authError(error));
       },
       async setNewPassword(password) {
         const { data, error } = await sb.auth.updateUser({ password });
-        if (error) throw new Error('errPwd');
+        if (error) throw new Error(authError(error));
         if (data.user) await loadUser(data.user);
       },
       async update(fields) {

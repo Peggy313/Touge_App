@@ -569,3 +569,56 @@ body.auth-mode .app { height: 100%; min-height: 0; }
 
 .btn.loading { opacity: .6; pointer-events: none; }
 .form-error.info { color: var(--blue); }
+
+/* ═════════════ Registrazione a tutto schermo + accesso con Google ═════════════ */
+.auth.full .auth-art { flex: 0 0 auto; height: 112px; min-height: 0; }
+.auth.full .auth-card { flex: 1 1 auto; margin: 0; border-left: 0; border-right: 0; border-bottom: 0; box-shadow: none; max-height: none; padding-bottom: calc(14px + var(--safe-b)); display: flex; flex-direction: column; }
+.auth.full #auth-form { display: flex; flex-direction: column; }
+.auth.full .auth-foot { margin-top: auto; padding-top: 12px; }
+.btn.social { background: #fff; color: #1f1f1f; border: 2px solid var(--ink); box-shadow: 3px 3px 0 var(--ink); font-family: var(--body); font-weight: 600; font-size: 16px; letter-spacing: 0; text-transform: none; height: 50px; gap: 12px; }
+.btn.social:active { transform: translate(2px, 2px); box-shadow: 1px 1px 0 var(--ink); }
+.g-logo { width: 20px; height: 20px; flex: none; }
+.or { display: flex; align-items: center; gap: 10px; margin: 14px 0 12px; font-family: var(--mono); font-size: 10.5px; font-weight: 700; letter-spacing: .12em; text-transform: uppercase; color: var(--ink-soft); }
+.or::before, .or::after { content: ''; flex: 1; height: 2px; background: rgba(0,0,0,.18); }
+@media (min-width: 900px) { .auth.full .auth-art { flex: 1 1 auto; height: auto; } .auth.full .auth-card { flex: 0 0 460px; margin: 24px 56px; border: 3px solid var(--ink); box-shadow: 6px 6px 0 #000; max-height: calc(100% - 48px); } }
+@media (max-height: 700px) { .auth.full .auth-art { height: 72px; } .or { margin: 10px 0 8px; } .btn.social { height: 44px; } }
+
+/* ═════════════ Chip filtro (Esplora + Mappa) ═════════════ */
+.fchip { gap: 6px; padding: 8px 14px 8px 16px; }
+.fchip .ic { width: 16px; height: 16px; flex: none; }
+.fchip .chev { width: 14px; height: 14px; margin-left: -2px; opacity: .7; }
+.fchip.on .chev { opacity: 1; }
+.fchip.reset { background: var(--red); color: var(--paper); }
+.fchip.reset.glass { background: var(--red); }
+.sheet-head .h2 .ic { width: 22px; height: 22px; }
+.sheet-hint { margin: 2px 0 12px; color: var(--ink-soft); }
+.sheet .chips.wrap .chip { font-size: 15px; }
+.sheet .btn [data-n] { font-family: var(--mono); font-size: 14px; margin-left: 6px; }
+
+/* Numeri delle card: slab grassottello stile numeri di gara vintage (Alfa Slab One), dritto e leggibile */
+:root { --racenum: 'Alfa Slab One', 'Rockwell Extra Bold', 'Rockwell', Georgia, serif; }
+.card-alt { font-family: var(--racenum); font-style: normal; font-size: 30px; letter-spacing: .01em; line-height: 1; text-shadow: 3px 3px 0 var(--ink), -1px -1px 0 var(--ink), 1px -1px 0 var(--ink), -1px 1px 0 var(--ink); }
+.card-alt small { font-family: var(--mono); font-weight: 700; font-size: 12px; text-shadow: 2px 2px 0 var(--ink); }
+.ring-label b { font-family: var(--racenum); font-size: 32px; }
+.progress-card.km .ring-label b { font-size: 26px; }
+.card-alt small { font-size: 15px; margin-left: 3px; letter-spacing: 0; }
+
+/* Numeri da gara anni '70/'80: cifre geometriche (Righteous) a doppia linea.
+   Strato 1 (::before) = alone crema largo · strato 2 = contorno inchiostro + riempimento crema
+   → ogni tratto appare come due linee parallele, leggibile su illustrazioni chiare e scure. */
+:root { --racenum: 'Righteous', 'Alfa Slab One', 'Arial Rounded MT Bold', sans-serif; }
+.card-alt { font-family: var(--racenum); font-weight: 400; font-style: normal; font-size: 34px; letter-spacing: .02em; line-height: 1;
+  color: var(--paper); -webkit-text-stroke: 7px var(--ink); paint-order: stroke fill; text-shadow: none; }
+.card-alt::before { content: attr(data-n); position: absolute; left: 0; top: 0; z-index: -1; color: var(--paper); -webkit-text-stroke: 12px var(--paper); paint-order: stroke fill; }
+.card-alt small { font-family: var(--mono); font-weight: 700; font-size: 14px; margin-left: 4px; -webkit-text-stroke: 4px var(--ink); paint-order: stroke fill; text-shadow: none; }
+.ring-label b { font-family: var(--racenum); }
+.card-alt { z-index: 1; isolation: isolate; }
+
+/* Numeri delle card: slab pesante e stretto (Alfa Slab One compresso), come i numeri dei cartelli di gara d'epoca */
+:root { --racenum: 'Alfa Slab One', 'Rockwell Extra Bold', Georgia, serif; }
+.card-alt { font-family: var(--racenum); font-size: 38px; letter-spacing: 0; color: var(--paper); -webkit-text-stroke: 0; paint-order: normal; isolation: auto; display: flex; align-items: baseline; }
+.card-alt::before { content: none; }
+.card-alt b { font-weight: 400; display: inline-block; transform: scaleX(.8); transform-origin: right bottom; margin-right: -2px;
+  text-shadow: 3px 3px 0 var(--ink), -1.5px -1.5px 0 var(--ink), 1.5px -1.5px 0 var(--ink), -1.5px 1.5px 0 var(--ink), 1.5px 1.5px 0 var(--ink); }
+.card-alt small { font-family: var(--mono); font-size: 14px; margin-left: 3px; -webkit-text-stroke: 0; text-shadow: 2px 2px 0 var(--ink), -1px -1px 0 var(--ink), 1px -1px 0 var(--ink), -1px 1px 0 var(--ink); }
+.ring-label b { font-family: var(--racenum); display: inline-block; transform: scaleX(.85); }
