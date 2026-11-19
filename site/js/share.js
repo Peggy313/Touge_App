@@ -4,7 +4,8 @@
  * incorporati (Google Fonts, solo le lettere usate); se non si riesce si usano quelli di sistema.
  *
  * Stili: retro (cartolina d'epoca giapponese) · vapor (vaporwave) · cyber (cyberpunk notte).
- * Elementi accendibili: stamp (francobollo 峠) · postmark (timbro) · greet ("Saluti da…") · plate (placca rally).
+ * Elementi accendibili: stamp (francobollo 峠) · postmark (timbro) · greet ("Saluti da…") · plate (placca rally)
+ * · car (polaroid con la foto dell'auto del pilota: info.carPhoto come data URL, info.carName).
  */
 (function () {
   const PW = 1200, PH = 1800; // cartolina
@@ -142,6 +143,20 @@
       ${txt(` stroke="${th.glow ? '#00e5ff' : th.frame}" stroke-width="7" stroke-linejoin="round"${th.glow ? ` filter="url(#${id}g)"` : ''}`, 'none')}`;
   }
 
+  // ── polaroid con la foto dell'auto del pilota, fissata con un pezzo di nastro
+  function polaroid(th, info, id) {
+    const pw = 330, ph = 248, b = 18, bb = 64, W = pw + 2 * b, H = ph + b + bb;
+    return `<g transform="translate(70 96) rotate(-5 ${W / 2} ${H / 2})">
+      <rect x="9" y="11" width="${W}" height="${H}" fill="#000" opacity=".35"/>
+      <rect width="${W}" height="${H}" fill="#fbf7ee"/>
+      <clipPath id="${id}pc"><rect x="${b}" y="${b}" width="${pw}" height="${ph}"/></clipPath>
+      <rect x="${b}" y="${b}" width="${pw}" height="${ph}" fill="#2a2a2a"/>
+      <image x="${b}" y="${b}" width="${pw}" height="${ph}" href="${info.carPhoto}" xlink:href="${info.carPhoto}" preserveAspectRatio="xMidYMid slice" clip-path="url(#${id}pc)"/>
+      ${T(W / 2, H - 20, String(info.carName || '').toUpperCase(), { size: 34, family: F.league, fill: '#1d1a16', max: W - 40, ls: 1 })}
+      <rect x="${W / 2 - 62}" y="-18" width="124" height="38" fill="${th.stampBg}" opacity=".7" transform="rotate(4 ${W / 2} 0)"/>
+    </g>`;
+  }
+
   // ── insegna al neon (solo cyberpunk)
   function neonSign(id) {
     return `<g filter="url(#${id}g)">
@@ -180,6 +195,7 @@
     if (els.greet) s += greetings(th, road, info, id);
     if (els.stamp) s += stamp(th, road.no, id);
     if (els.postmark) s += postmark(th, road, date, id);
+    if (els.car && info.carPhoto) s += polaroid(th, info, id);
 
     // fascia testi
     s += `<rect x="${AX}" y="${BY}" width="${AW}" height="${PH - BY - AY}" fill="${th.band}"/>`;
@@ -289,7 +305,7 @@
 
   window.TougeShare = {
     STYLES: ['retro', 'vapor', 'cyber'],
-    ELEMENTS: ['stamp', 'postmark', 'greet', 'plate'],
+    ELEMENTS: ['stamp', 'postmark', 'greet', 'plate', 'car'],
     ready,
     // anteprima nella pagina (usa i caratteri già caricati)
     preview: (road, info, style, els) =>

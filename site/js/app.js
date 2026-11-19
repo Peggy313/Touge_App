@@ -11,7 +11,8 @@
   let lang = Store.lang();
   let map = null; // istanza Leaflet attiva
   // filtri: dentro una categoria vale "o" (es. Italia o Slovenia), tra categorie "e"
-  const filters = { q: '', sel: { country: [], diff: [], len: [], hair: [], alt: [] }, sort: 'name', open: false, noToll: false };
+  // time: minuti massimi di guida da "Da dove parti" (0 = nessun limite)
+  const filters = { q: '', sel: { exp: [], country: [], diff: [], len: [], hair: [], alt: [] }, sort: 'name', open: false, noToll: false, time: 0 };
 
   const t = (k) => (I18N[lang] && I18N[lang][k] != null ? I18N[lang][k] : k);
   const esc = (s) => String(s == null ? '' : s).replace(/[&<>"']/g, (c) => ({ '&': '&amp;', '<': '&lt;', '>': '&gt;', '"': '&quot;', "'": '&#39;' }[c]));
@@ -60,9 +61,28 @@
     chev: '<path d="M7 10h10l-5 5-5-5Z"/>',
     close: '<path d="m6.4 5 5.6 5.6L17.6 5 19 6.4 13.4 12l5.6 5.6-1.4 1.4-5.6-5.6L6.4 19 5 17.6l5.6-5.6L5 6.4 6.4 5Z"/>',
     share: '<path d="M18 16a3 3 0 0 0-2.4 1.2L8.9 13.7a3 3 0 0 0 0-3.4l6.7-3.5A3 3 0 1 0 15 5c0 .2 0 .5.1.7L8.4 9.2a3 3 0 1 0 0 5.6l6.7 3.5A3 3 0 1 0 18 16Z"/>',
+    go: '<path d="M21.5 2.5 2.5 10.4l7.6 3.5 3.5 7.6 7.9-19Z"/>',
     story: '<path d="M7 2h10a5 5 0 0 1 5 5v10a5 5 0 0 1-5 5H7a5 5 0 0 1-5-5V7a5 5 0 0 1 5-5Zm0 2a3 3 0 0 0-3 3v10a3 3 0 0 0 3 3h10a3 3 0 0 0 3-3V7a3 3 0 0 0-3-3H7Zm5 3.5a4.5 4.5 0 1 1 0 9 4.5 4.5 0 0 1 0-9Zm0 2a2.5 2.5 0 1 0 0 5 2.5 2.5 0 0 0 0-5Zm5.3-4a1.2 1.2 0 1 1 0 2.4 1.2 1.2 0 0 1 0-2.4Z"/>',
   };
+  I.bell = '<path d="M12 2a1.5 1.5 0 0 0-1.5 1.5v.7A6.5 6.5 0 0 0 5.5 10.5V15L3.5 17.5V19h17v-1.5L18.5 15v-4.5a6.5 6.5 0 0 0-5-6.3v-.7A1.5 1.5 0 0 0 12 2Zm-2.5 18a2.5 2.5 0 0 0 5 0h-5Z"/>';
+  I.plus ='<path d="M11 4h2v7h7v2h-7v7h-2v-7H4v-2h7V4Z"/>';
+  I.route = '<path d="M6 2.5a3 3 0 1 0 0 6 3 3 0 0 0 0-6Zm12 13a3 3 0 1 0 0 6 3 3 0 0 0 0-6ZM9 4.5v2h9a1.5 1.5 0 0 1 0 3H6a3.5 3.5 0 0 0 0 7h9v-2H6a1.5 1.5 0 0 1 0-3h12a3.5 3.5 0 0 0 0-7H9Z"/>';
+  I.camera ='<path d="M9 3 7.2 5.5H4A2 2 0 0 0 2 7.5V19a2 2 0 0 0 2 2h16a2 2 0 0 0 2-2V7.5a2 2 0 0 0-2-2h-3.2L15 3H9Zm3 5a5 5 0 1 1 0 10 5 5 0 0 1 0-10Zm0 2a3 3 0 1 0 0 6 3 3 0 0 0 0-6Z"/>';
+  I.clock ='<path d="M12 2a10 10 0 1 0 0 20 10 10 0 0 0 0-20Zm0 2a8 8 0 1 1 0 16 8 8 0 0 1 0-16Zm-1 3v6l5 3 1-1.7-4-2.4V7h-2Z"/>';
+  I.spark = '<path d="M12 1.5c.9 5.4 3.6 8.1 9 9-5.4.9-8.1 3.6-9 9-.9-5.4-3.6-8.1-9-9 5.4-.9 8.1-3.6 9-9Z"/><path d="M19.5 15.5c.4 2.3 1.5 3.4 3.5 3.8-2 .4-3.1 1.5-3.5 3.7-.4-2.2-1.5-3.3-3.5-3.7 2-.4 3.1-1.5 3.5-3.8Z"/>';
+  // meteo (icone piene, a un colore)
+  const CLOUD = (y) => `<path d="M6.5 ${19 - y}a4.5 4.5 0 0 1-.6-9A6.5 6.5 0 0 1 18.3 ${9 - y}a5 5 0 0 1-.3 ${10}H6.5Z"/>`;
+  const WX = {
+    sun: '<circle cx="12" cy="12" r="4.5"/><path d="M11 1h2v4h-2zM11 19h2v4h-2zM1 11h4v2H1zM19 11h4v2h-4zM4.2 5.6l1.4-1.4 2.8 2.8-1.4 1.4zM15.6 17l1.4-1.4 2.8 2.8-1.4 1.4zM4.2 18.4l2.8-2.8 1.4 1.4-2.8 2.8zM15.6 7l2.8-2.8 1.4 1.4L17 8.4z"/>',
+    part: '<circle cx="8" cy="8" r="3.4"/><path d="M7 .8h2v2.6H7zM.8 7h2.6v2H.8zM2.4 3.8l1.4-1.4 1.8 1.8-1.4 1.4zM12.2 2.4l1.4 1.4-1.8 1.8-1.4-1.4z"/><path d="M8.5 21.5a4 4 0 0 1-.5-8 5.8 5.8 0 0 1 11-.1 4.1 4.1 0 0 1 0 8.1H8.5Z" stroke="var(--wx-bg, #f3ead8)" stroke-width="1.6"/>',
+    cloud: CLOUD(0),
+    fog: '<path d="M3 6h18v2.2H3zM5 10.6h14v2.2H5zM3 15.2h18v2.2H3zM7 19.8h10V22H7z"/>',
+    rain: CLOUD(4) + '<path d="M7 17h2.2l-1.6 5H5.4zM11.9 17h2.2l-1.6 5h-2.2zM16.8 17H19l-1.6 5h-2.2z"/>',
+    snow: CLOUD(4) + '<circle cx="7.5" cy="19" r="1.6"/><circle cx="12" cy="21.4" r="1.6"/><circle cx="16.5" cy="19" r="1.6"/>',
+    storm: CLOUD(4) + '<path d="M11.2 15.5h4.3l-2 3.2h3L10 24l1.7-4.1H9z"/>',
+  };
   const icon = (n, cls) => `<svg class="ic ${cls || ''}" viewBox="0 0 24 24" aria-hidden="true">${I[n]}</svg>`;
+  const wxIcon = (k) => `<svg class="ic wx-ic" viewBox="0 0 24 24" role="img" aria-label="${t('wxK')[k] || ''}">${WX[k] || ''}</svg>`;
 
   // bandiera a scacchi: icona delle strade guidate
   const CHK = (() => {
@@ -91,19 +111,22 @@
   }
   // Placca "Strada guidata" in stile rally storico: spalle piatte e cupola centrale,
   // riquadro crema con il numero di collezione, anno in cui l'hai guidata ai lati.
-  function drivenPlate(r) {
+  // con la foto verificata (posizione vicina al tracciato) la scritta diventa "VERIFICATO"
+  function drivenPlate(r, verified) {
+    if (verified == null) verified = !!(Store.isVerified && Store.isVerified(r.id));
+    const label = t(verified ? 'verified' : 'driven');
     const d = new Date(Store.driven()[r.id] || Date.now());
     const ddmm = String(d.getDate()).padStart(2, '0') + '/' + String(d.getMonth() + 1).padStart(2, '0');
     // Geometria ricalcata sulla placca di riferimento (504×226): spalle a y=60, cupola ellittica
     // da x=91 a x=411, riquadro crema 150×68, scritta in basso alta quasi metà placca.
     const shape = 'M8 60 L91 60 A160 60 0 0 1 411 60 L494 60 Q502 60 502 68 L502 218 Q502 226 494 226 L8 226 Q0 226 0 218 L0 68 Q0 60 8 60 Z';
-    return `<svg viewBox="-6 -6 514 238" aria-label="${esc(t('driven'))} ${ddmm}/${d.getFullYear()}">
+    return `<svg viewBox="-6 -6 514 238" aria-label="${esc(label)} ${ddmm}/${d.getFullYear()}">
       <path d="${shape}" fill="#e3262c" stroke="#f6efe0" stroke-width="8" paint-order="stroke" stroke-linejoin="round"/>
       <rect x="172" y="16" width="158" height="70" rx="8" fill="#f6efe0"/>
       <text x="251" y="77" text-anchor="middle" class="pl-num" data-fit="136">${r.no}</text>
       <text x="164" y="92" text-anchor="end" class="pl-side" data-fit="74">${ddmm}</text>
       <text x="338" y="92" text-anchor="start" class="pl-side" data-fit="74">${d.getFullYear()}</text>
-      <text x="251" y="205" text-anchor="middle" class="pl-title" data-fit="470" data-fill="1">${esc(t('driven').toUpperCase())}</text>
+      <text x="251" y="205" text-anchor="middle" class="pl-title" data-fit="470" data-fill="1">${esc(label.toUpperCase())}</text>
     </svg>`;
   }
 
@@ -136,7 +159,10 @@
     toast._t = setTimeout(() => el.classList.remove('show'), 2200);
   }
 
+  // user.photoUrl (già un indirizzo) oppure user.photo (riferimento salvato nel profilo)
   function avatar(user, size) {
+    const url = user.photoUrl != null ? user.photoUrl : user.photo ? Store.photoUrl(user.photo) : '';
+    if (url) return `<div class="avatar photo" style="--s:${size || 44}px"><img src="${esc(url)}" alt="" loading="lazy" decoding="async" /></div>`;
     const grads = [['#ff3b1f', '#ff8a3d'], ['#ff2d55', '#7c3aed'], ['#06b6d4', '#3b82f6'], ['#f59e0b', '#ef4444'], ['#10b981', '#0ea5e9'], ['#e11d48', '#f97316']];
     const g = grads[(user.avatar || 0) % grads.length];
     const ini = (user.name || '?').trim().split(/\s+/).map((p) => p[0]).slice(0, 2).join('').toUpperCase();
@@ -180,14 +206,100 @@
   const PUBLIC = ['login', 'register', 'forgot'];
   const BARE = ['intro', 'reset', ...PUBLIC];          // schermate senza barra delle schede
   const OPEN = ['intro', 'reset', 'privacy'];
-  const GUEST = ['explore', 'map', 'road'];            // visibili anche senza account
+  const GUEST = ['explore', 'map', 'road', 'trip', 'tripedit']; // visibili anche senza account (tripedit invita a registrarsi)
   const LOCKED = ['garage', 'profile'];                // senza account: invito a registrarsi
   const lsGet = (k, d) => { try { const v = localStorage.getItem(k); return v == null ? d : JSON.parse(v); } catch (e) { return d; } };
   const lsSet = (k, v) => { try { localStorage.setItem(k, JSON.stringify(v)); } catch (e) { /* ok */ } };
 
+  // ───────────── DA DOVE PARTI ("Vicino a te" / "Parto da…") ─────────────
+  // Resta solo sul telefono: { kind: 'gps', ll, at } (arrotondata a ~1 km) oppure { kind: 'city', ll, it, en }.
+  let origin = lsGet('touge.origin', null);
+  let driveCache = {};
+  const setOrigin = (o) => {
+    origin = o; driveCache = {}; lsSet('touge.origin', o);
+    // con le push accese, il servizio usa la partenza (arrotondata a ~10 km) per "Weekend di sole vicino a te"
+    if (Auth.current() && Store.notifyPrefs().push) Store.setNotifyPrefs({}, o && o.ll, lang).catch(() => {});
+  };
+  const cityName = (o) => (lang === 'en' && o.en ? o.en.split('|')[0] : o.it);
+  const originLabel = () => (!origin ? '' : origin.kind === 'gps' ? t('fromHere') : t('fromCity').replace('{c}', cityName(origin)));
+  // minuti di guida stimati fino al più vicino dei due capi della strada
+  function driveMin(r) {
+    if (!origin) return null;
+    if (driveCache[r.id] == null) driveCache[r.id] = estDrive(Math.min(haversine(origin.ll, r.wp[0]), haversine(origin.ll, r.wp[r.wp.length - 1])));
+    return driveCache[r.id];
+  }
+  function locateMe() {
+    return new Promise((res) => {
+      if (!navigator.geolocation) return res(false);
+      navigator.geolocation.getCurrentPosition((p) => {
+        setOrigin({ kind: 'gps', ll: [+p.coords.latitude.toFixed(2), +p.coords.longitude.toFixed(2)], at: Date.now() });
+        res(true);
+      }, () => res(false), { enableHighAccuracy: false, timeout: 10000, maximumAge: 600000 });
+    });
+  }
+  // se la posizione è già permessa e vecchia di oltre 30 minuti, la aggiorna senza chiedere nulla
+  async function refreshGps(onDone) {
+    if (!origin || origin.kind !== 'gps' || Date.now() - (origin.at || 0) < 30 * 60e3) return;
+    try {
+      const p = navigator.permissions && (await navigator.permissions.query({ name: 'geolocation' }));
+      if (p && p.state === 'granted' && (await locateMe())) onDone();
+    } catch (e) { /* ok */ }
+  }
+  const norm = (s) => s.normalize('NFD').replace(/[̀-ͯ]/g, '').toLowerCase();
+  function findCities(q) {
+    q = norm(q.trim());
+    if (q.length < 2) return [];
+    const hit = [];
+    (window.CITIES || []).forEach((c) => {
+      const names = [c[0]].concat(c[4] ? c[4].split('|') : []).map(norm);
+      const rank = names.some((n) => n.startsWith(q)) ? 0 : names.some((n) => n.includes(q)) ? 1 : -1;
+      if (rank >= 0) hit.push([rank, c]);
+    });
+    return hit.sort((a, b) => a[0] - b[0] || a[1][0].localeCompare(b[1][0])).slice(0, 6).map((h) => h[1]);
+  }
+
+  // ───────────── METEO IN VETTA ─────────────
+  function wxPill(id) {
+    const w = window.TougeWx && TougeWx.get(id);
+    return w && w.now ? `${wxIcon(w.now.k)}<b>${w.now.t}°</b>` : '';
+  }
+  // scarica il meteo (una volta ogni 3 ore) e riempie ciò che è a schermo
+  function loadWx() {
+    if (!window.TougeWx) return;
+    const paint = () => {
+      $$('[data-wx]').forEach((el) => (el.innerHTML = wxPill(el.dataset.wx)));
+      const box = $('#wx-box');
+      if (box) renderWxBox(byId[box.dataset.road]);
+    };
+    if (TougeWx.ready()) return;
+    TougeWx.load(ROADS, summit).then(paint);
+  }
+  function renderWxBox(r) {
+    const box = $('#wx-box');
+    if (!box || !r) return;
+    const w = TougeWx.get(r.id);
+    if (!w || !w.days.length) { box.hidden = true; return; }
+    const today = w.days[0], soon = w.days.slice(0, 2);
+    const ice = soon.some((d) => d.snow > 0 || d.min <= 0);
+    const extra = [t('wxWind').replace('{v}', today.wind)];
+    if (today.pop >= 20) extra.push(t('wxRain').replace('{v}', today.pop));
+    if (today.snow > 0) extra.push(t('wxSnow').replace('{v}', today.snow.toFixed(today.snow < 1 ? 1 : 0)));
+    box.hidden = false;
+    box.innerHTML = `
+      <div class="wx-head"><h2 class="h2">${icon('mountain')} ${t('wxTitle')}</h2>
+        ${w.now ? `<span class="wx-now">${t('wxNow')} ${wxIcon(w.now.k)}<b>${w.now.t}°</b></span>` : ''}</div>
+      <div class="wx-days">${w.days.map((d, i) => `
+        <div class="wx-day"><span>${i ? t('wxDays')[new Date(d.day + 'T12:00').getDay()] : t('wxToday')}</span>${wxIcon(d.k)}<b>${d.max}°</b><small>${d.min}°</small></div>`).join('')}
+      </div>
+      <p class="wx-line">${extra.join(' · ')}</p>
+      ${ice ? `<p class="wx-warn">${icon('snow')}<span>${t('wxIce')}</span></p>` : ''}
+      <p class="wx-src">${t('wxSource').replace('{alt}', fmt(r.alt))}</p>`;
+  }
+
   function route() {
     const hash = location.hash.replace(/^#\/?/, '') || '';
-    const name = hash.startsWith('road-') ? 'road' : hash; const param = name === 'road' ? hash.slice(5) : '';
+    const name = hash.startsWith('road-') ? 'road' : hash.startsWith('tripedit') ? 'tripedit' : hash.startsWith('trip-') ? 'trip' : hash;
+    const param = name === 'road' || name === 'trip' ? hash.slice(5) : name === 'tripedit' ? hash.slice(9) : '';
     const user = Auth.current();
 
     if (map) { map.remove(); map = null; }
@@ -201,7 +313,7 @@
     if (user) Store.setHadAccount();
     if (user && (PUBLIC.includes(name) || !name)) return go('explore');
 
-    const views = { intro: viewIntro, reset: viewReset, login: viewLogin, register: viewRegister, forgot: viewForgot, privacy: viewPrivacy, explore: viewExplore, map: viewMap, road: viewRoad, garage: viewGarage, profile: viewProfile };
+    const views = { intro: viewIntro, reset: viewReset, login: viewLogin, register: viewRegister, forgot: viewForgot, privacy: viewPrivacy, explore: viewExplore, map: viewMap, road: viewRoad, trip: viewTrip, tripedit: viewTripEdit, garage: viewGarage, profile: viewProfile };
     let view = views[name];
     if (!view) return go('explore');
     if (!user && LOCKED.includes(name)) view = viewLocked;
@@ -213,9 +325,14 @@
     document.body.classList.toggle('map-mode', name === 'map');
     document.body.classList.toggle('guest', !user && !isAuth);
     view(param, user);
-    if (!isAuth) renderTabbar(name === 'road' ? 'explore' : name === 'privacy' ? 'profile' : name);
+    if (!isAuth) renderTabbar(name === 'road' || name === 'trip' ? 'explore' : name === 'tripedit' ? 'garage' : name === 'privacy' ? 'profile' : name);
     else renderJoinbar(false);
     if (name !== 'map') window.scrollTo(0, 0);
+    // dopo la registrazione: una volta sola, invito (facoltativo) ad aggiungere la foto profilo
+    if (user && !isAuth && !user.photo && lsGet('touge.askPhoto', false)) {
+      lsSet('touge.askPhoto', false);
+      setTimeout(() => { if (Auth.current()) openPhotoAsk(); }, 900);
+    }
   }
   function go(path) { location.hash = '#' + path; }
 
@@ -247,7 +364,7 @@
   }
   // foglio dal basso con la placca: "Crea la tua licenza pilota"
   function openJoinSheet(reason, r, pending) {
-    const keys = { fav: 'joinFav', driven: 'joinDriven', review: 'joinReview', report: 'joinReport', flag: 'joinFlag', garage: 'joinGarage', profile: 'joinProfile', remind: 'joinRemind' };
+    const keys = { fav: 'joinFav', driven: 'joinDriven', review: 'joinReview', report: 'joinReport', flag: 'joinFlag', garage: 'joinGarage', profile: 'joinProfile', remind: 'joinRemind', photo: 'joinPhoto', trip: 'joinTrip' };
     const pr = r || roadOfDay();
     const seen = lsGet('touge.guestViews', []).length;
     const sh = openSheet(`
@@ -512,7 +629,7 @@
       if (d.password !== d.password2) return showErr('errMatch');
       if (!d.terms) return showErr('errTerms');
       busy(f, true);
-      try { const u = await Auth.register(d); toast(`${t('hello')}, ${u.name}!`); goAfterAuth(); }
+      try { const u = await Auth.register(d); toast(`${t('hello')}, ${u.name}!`); lsSet('touge.askPhoto', true); goAfterAuth(); }
       catch (err) {
         if (err.message === 'checkEmail') { showInfo('checkEmail'); f.reset(); }
         else showErr(err.message);
@@ -575,7 +692,14 @@
 
   // ───────────── EXPLORE ─────────────
   // categorie di filtro: icona, etichetta e opzioni (con la regola che le verifica)
+  const hasTag = (r, list) => r.tags.some((x) => list.includes(x));
   const FILTER_DEFS = {
+    // esperienze: raggruppano tag e numeri che ci sono già
+    exp: { icon: 'spark', label: 'experience', opts: () => [
+      { v: 'view', label: t('expView'), short: t('expView'), test: (r) => hasTag(r, ['panoramica', 'lago', 'ghiacciai', 'costa', 'dolomiti']) },
+      { v: 'hair', label: t('expHair'), short: t('expHair'), test: (r) => r.hairpins >= 30 || hasTag(r, ['tornanti']) },
+      { v: 'legend', label: t('expLegend'), short: t('expLegend'), test: (r) => hasTag(r, ['leggenda', 'rally', 'mille-miglia', 'cronoscalata', 'cinema', 'storica', 'record']) },
+      { v: 'easy', label: t('expEasy'), short: t('expEasy'), test: (r) => r.diff <= 2 && !r.toll && !hasTag(r, ['stretta', 'pavé']) }] },
     country: { icon: 'globe', label: 'country', opts: () => Object.keys(COUNTRIES).map((c) => ({ v: c, label: flag(c) + ' ' + cname(c), short: cname(c), test: (r) => r.country === c })) },
     diff: { icon: 'gauge', label: 'difficulty', opts: () => [1, 2, 3, 4, 5].map((d) => ({ v: d, label: diffBars(d) + ' ' + t('diffLabels')[d], short: t('diffLabels')[d], test: (r) => r.diff === d })) },
     len: { icon: 'road', label: 'length', opts: () => [
@@ -591,7 +715,7 @@
       { v: 'mid', label: '1500–2200 m', short: '1500–2200 m', test: (r) => r.alt >= 1500 && r.alt <= 2200 },
       { v: 'high', label: '&gt; 2200 m', short: '&gt; 2200 m', test: (r) => r.alt > 2200 }] },
   };
-  const activeCount = () => Object.values(filters.sel).reduce((n, a) => n + a.length, 0) + (filters.open ? 1 : 0) + (filters.noToll ? 1 : 0);
+  const activeCount = () => Object.values(filters.sel).reduce((n, a) => n + a.length, 0) + (filters.open ? 1 : 0) + (filters.noToll ? 1 : 0) + (filters.time && origin ? 1 : 0);
 
   function applyFilters() {
     const q = filters.q.trim().toLowerCase();
@@ -601,11 +725,13 @@
       if (groups.some((opts) => !opts.some((o) => o.test(r)))) return false;
       if (filters.open && r.closure) return false;
       if (filters.noToll && r.toll) return false;
+      if (filters.time && origin && driveMin(r) > filters.time) return false;
       if (q && !(r.name + ' ' + r.region + ' ' + cname(r.country) + ' ' + r.tags.map(tag).join(' ')).toLowerCase().includes(q)) return false;
       return true;
     });
     const s = filters.sort;
     list.sort((a, b) =>
+      s === 'near' && origin ? driveMin(a) - driveMin(b) || a.name.localeCompare(b.name) :
       s === 'alt' ? b.alt - a.alt : s === 'km' ? b.km - a.km : s === 'hair' ? b.hairpins - a.hairpins :
       s === 'rating' ? ((Store.rating(b.id) || { avg: 0 }).avg - (Store.rating(a.id) || { avg: 0 }).avg) : a.name.localeCompare(b.name));
     return list;
@@ -624,31 +750,34 @@
       const n = activeCount();
       box.innerHTML =
         (n ? `<button class="chip fchip reset${g}" data-reset>${icon('close')}<span>${t('reset')}</span></button>` : '') +
+        `<button class="chip fchip${g} ${filters.time && origin ? 'on' : ''}" data-time aria-haspopup="dialog">${icon('clock')}<span>${filters.time && origin ? t('within').replace('{t}', fmtDur(filters.time)) : t('fromYou')}</span>${icon('chev', 'chev')}</button>` +
         Object.keys(FILTER_DEFS).map((k) => `<button class="chip fchip${g} ${filters.sel[k].length ? 'on' : ''}" data-f="${k}" aria-haspopup="dialog">${icon(FILTER_DEFS[k].icon)}<span>${label(k)}</span>${icon('chev', 'chev')}</button>`).join('') +
         `<button class="chip fchip${g} ${filters.open ? 'on' : ''}" data-t="open" aria-pressed="${filters.open}">${icon('snow')}<span>${t('openNow')}</span></button>` +
         `<button class="chip fchip${g} ${filters.noToll ? 'on' : ''}" data-t="noToll" aria-pressed="${filters.noToll}">${icon('euro')}<span>${t('noToll')}</span></button>`;
       $$('[data-f]', box).forEach((b) => (b.onclick = () => openFilterSheet(b.dataset.f, () => { paint(); onChange(); })));
       $$('[data-t]', box).forEach((b) => (b.onclick = () => { filters[b.dataset.t] = !filters[b.dataset.t]; paint(); onChange(); }));
+      $('[data-time]', box).onclick = () => openOriginSheet(true, () => { paint(); onChange(); });
       const r = $('[data-reset]', box);
-      if (r) r.onclick = () => { Object.keys(filters.sel).forEach((k) => (filters.sel[k] = [])); filters.open = filters.noToll = false; paint(); onChange(); };
+      if (r) r.onclick = () => { Object.keys(filters.sel).forEach((k) => (filters.sel[k] = [])); filters.open = filters.noToll = false; filters.time = 0; paint(); onChange(); };
     };
     paint();
   }
 
   function roadCard(r) {
     const fav = Store.isFav(r.id), dr = Store.isDriven(r.id), rt = Store.rating(r.id);
-    const st = Store.roadStatus(r.id);
+    const st = Store.roadStatus(r.id), dm = driveMin(r);
     const badge = st && (st.by === 'official' || Date.now() - Date.parse(st.at) < 7 * 864e5)
       ? `<span class="st-badge ${st.status}">${t(st.status === 'open' ? 'stOpen' : 'stClosed')}</span>` : '';
     return `
       <article class="card ${dr ? 'is-driven' : ''}" data-go="${r.id}">
         <div class="card-art">${roadArt(r, { w: 320, h: 190, num: r.no })}${badge}
+          <span class="wx-pill" data-wx="${r.id}">${wxPill(r.id)}</span>
           <span class="card-alt"><b>${fmt(r.alt)}</b><small>m</small></span>
           ${dr ? `<span class="stamp">${drivenPlate(r)}</span>` : ''}
           <button class="fav-btn ${fav ? 'on' : ''}" data-fav="${r.id}" aria-label="${t('favorite')}">${icon('heart')}</button>
         </div>
         <div class="card-body">
-          <div class="card-kicker">${flag(r.country)} ${esc(r.region)}</div>
+          <div class="card-kicker">${flag(r.country)} <span class="kick-reg">${esc(r.region)}</span>${dm != null ? `<span class="kick-time">${icon('clock')}≈ ${fmtDur(dm)}</span>` : ''}</div>
           <div class="card-title"><h3>${esc(r.name)}</h3>${diffBars(r.diff)}</div>
           <div class="card-meta">
             <span>${r.km}<em>km</em></span>
@@ -667,6 +796,7 @@
       const on = Store.toggleFav(b.dataset.fav);
       b.classList.toggle('on', on);
       toast(on ? '♥ ' + byId[b.dataset.fav].name : t('removeFav') + ' ✕');
+      if (on) maybeAskNotify();
     }));
     $$('[data-go]', root).forEach((c) => (c.onclick = () => go('road-' + c.dataset.go)));
   }
@@ -676,7 +806,7 @@
     app.innerHTML = `
       <header class="top">
         <div><p class="muted small">${t('exploreSub')}</p><h1 class="h1">${user ? `${t('hello')}, ${esc(user.name)}` : t('helloGuest')}</h1></div>
-        ${user ? `<a href="#profile" aria-label="${t('profile')}">${avatar(user, 44)}</a>` : `<button class="enter-btn" id="enter">${t('register')}</button>`}
+        ${user ? `<div class="top-right"><button class="bell" id="bell" aria-label="${t('alerts')}">${icon('bell')}<span class="bell-n" hidden></span></button><a href="#profile" aria-label="${t('profile')}">${avatar(user, 44)}</a></div>` : `<button class="enter-btn" id="enter">${t('register')}</button>`}
       </header>
       <div class="search-row">
         <label class="search">${icon('search')}<input id="q" type="search" placeholder="${t('search')}" value="${esc(filters.q)}" /></label>
@@ -693,6 +823,9 @@
         </div>
       </section>
 
+      <section class="near" id="near"></section>
+      <section class="near trips-row" id="trips-row"></section>
+
       <div class="list-head"><h2 class="h2" id="list-title">${t('explore')}</h2><span class="muted small" id="count"></span></div>
       <div class="grid" id="list"></div>
       <div class="sheet-wrap" id="sheet" hidden></div>`;
@@ -702,18 +835,135 @@
       // con filtri o ricerca attivi la pagina diventa "risultati": sparisce la strada del giorno
       const filtered = activeCount() > 0 || !!filters.q.trim();
       $('.featured').hidden = filtered;
+      $('#near').hidden = filtered;
+      $('#trips-row').hidden = filtered;
+      $('#open-filters').classList.toggle('dot', filters.sort !== 'name');
       $('#list-title').textContent = filtered ? t('filteredTitle') : t('explore');
       $('#count').textContent = `${list.length} ${list.length === 1 ? t('result1') : t('results')}`;
       $('#list').innerHTML = list.length ? list.map(roadCard).join('') : `<p class="empty">${t('noResults')}</p>`;
       bindCards($('#list'));
     };
+    // "Vicino a te": invito a scegliere la partenza, oppure le strade più vicine in tempo di guida
+    const renderNear = () => {
+      const box = $('#near');
+      if (!box) return;
+      if (!origin) {
+        box.innerHTML = `
+          <div class="near-cta">
+            <h2 class="h2">${icon('pin')} ${t('nearYou')}</h2>
+            <p>${t('nearSub')}</p>
+            <div class="near-btns">
+              <button class="btn primary sm" data-gps>${icon('locate')} ${t('useGps')}</button>
+              <button class="btn ghost sm" data-city>${icon('search')} ${t('pickCity')}</button>
+            </div>
+          </div>`;
+        $('[data-gps]', box).onclick = async (e) => {
+          const b = e.currentTarget; b.classList.add('loading');
+          if (await locateMe()) refresh(); else { b.classList.remove('loading'); toast(t('gpsDenied')); }
+        };
+        $('[data-city]', box).onclick = () => openOriginSheet(false, refresh, true);
+        return;
+      }
+      const near = ROADS.slice().sort((a, b) => driveMin(a) - driveMin(b)).slice(0, 10);
+      box.innerHTML = `
+        <div class="list-head"><h2 class="h2">${t('nearYou')}</h2><button class="near-from" data-change>${icon('pin')}<span>${esc(originLabel())}</span>${icon('chev', 'chev')}</button></div>
+        <div class="hscroll">${near.map((x) => miniCard(x, `≈ ${fmtDur(driveMin(x))} · ${fmt(x.alt)} m`)).join('')}</div>`;
+      $('[data-change]', box).onclick = () => openOriginSheet(false, refresh);
+      $$('[data-go]', box).forEach((c) => (c.onclick = () => go('road-' + c.dataset.go)));
+    };
+    // itinerari: curati (prima i più vicini alla tua partenza) + quelli pubblicati dai piloti + "Crea il tuo"
+    const renderTrips = () => {
+      const box = $('#trips-row');
+      if (!box) return;
+      let cur = allCurated();
+      if (origin) {
+        const d = (tr) => Math.min(...tripRoads(tr).map((r) => haversine(origin.ll, summit(r))));
+        cur = cur.sort((a, b) => d(a) - d(b));
+      }
+      const list = cur.concat(Store.publicTrips());
+      box.innerHTML = `<div class="list-head"><h2 class="h2">${t('itineraries')}</h2></div>
+        <div class="hscroll trips">${list.map(tripCard).join('')}${newTripCard()}</div>`;
+      bindTripCards(box);
+    };
+    renderTrips();
+    Store.loadPublicTrips().then(() => { if (location.hash === '#explore' || !location.hash) renderTrips(); }).catch(() => {});
+    // il chip "Da te" può cambiare la partenza: ridisegna anche "Vicino a te"
+    const onFilter = () => { renderNear(); renderTrips(); renderList(); };
+    const refresh = () => { onFilter(); filterChips($('#chips'), onFilter); };
+    renderNear();
     renderList();
+    loadWx();
+    refreshGps(refresh);
     $('.featured').onclick = () => go('road-' + rod.id);
     if (!user) $('#enter').onclick = () => startJoin();
+    if (user) {
+      $('#bell').onclick = () => openAlerts();
+      refreshBell();
+    }
 
     $('#q').oninput = (e) => { filters.q = e.target.value; renderList(); };
-    filterChips($('#chips'), renderList);
+    filterChips($('#chips'), onFilter);
     $('#open-filters').onclick = () => openSortSheet(() => { renderList(); $('#open-filters').classList.toggle('dot', filters.sort !== 'name'); });
+  }
+
+  function miniCard(x, sub) {
+    const dr = Store.isDriven(x.id);
+    return `
+      <article class="mini-card ${dr ? 'is-driven' : ''}" data-go="${x.id}"><div class="mini-art">${roadArt(x, { w: 220, h: 130 })}<span class="wx-pill sm" data-wx="${x.id}">${wxPill(x.id)}</span></div>
+        <div><h4>${dr ? CHK : ''}${esc(x.name)}</h4><span class="muted xs">${sub}</span></div>
+      </article>`;
+  }
+
+  // "Da dove parti?": posizione attuale o città, e (dai filtri) quanto vuoi guidare
+  function openOriginSheet(withTime, onChange, focus) {
+    const times = [60, 120, 180, 0];
+    const sh = openSheet(`
+      <div class="sheet-head"><h2 class="h2">${icon('pin')} ${t('originTitle')}</h2><button class="link" data-close>${t('close')}</button></div>
+      <button class="org-gps" data-gps>${icon('locate')}<span>${t('myPosition')}</span>${icon('check', 'org-ok')}</button>
+      <label class="search org-q">${icon('search')}<input id="org-q" type="search" placeholder="${t('cityPh')}" autocomplete="off" enterkeyhint="search" /></label>
+      <div class="org-list" id="org-list"></div>
+      ${withTime ? `
+        <h3 class="org-h">${t('howLong')}</h3>
+        <div class="chips wrap" id="org-time">${times.map((v) => `<button class="chip ${filters.time === v ? 'on' : ''}" data-tv="${v}">${v ? t('within').replace('{t}', fmtDur(v)) : t('anyTime')}</button>`).join('')}</div>
+        <p class="muted small org-hint">${t('driveHint')}</p>
+        <button class="btn primary" data-close>${t('showResults')} <span data-n></span></button>` : ''}`);
+    sh.classList.add('org-sheet');
+    const q = $('#org-q', sh), list = $('#org-list', sh);
+    const paint = () => {
+      $('[data-gps]', sh).classList.toggle('on', !!origin && origin.kind === 'gps');
+      q.placeholder = origin && origin.kind === 'city' ? `${t('pickCity')} ${cityName(origin)} ✓` : t('cityPh');
+      q.classList.toggle('set', !!origin && origin.kind === 'city');
+      const n = $('[data-n]', sh);
+      if (n) n.textContent = `(${applyFilters().length})`;
+      $$('[data-tv]', sh).forEach((b) => b.classList.toggle('on', +b.dataset.tv === filters.time));
+    };
+    const picked = () => { paint(); onChange(); if (!withTime) $('[data-close]', sh).click(); };
+    $('[data-gps]', sh).onclick = async (e) => {
+      const b = e.currentTarget; b.classList.add('loading');
+      const ok = await locateMe();
+      b.classList.remove('loading');
+      if (!ok) return toast(t('gpsDenied'));
+      q.value = ''; list.innerHTML = ''; picked();
+    };
+    q.oninput = () => {
+      const found = findCities(q.value);
+      list.innerHTML = q.value.trim().length < 2 ? '' : found.length
+        ? found.map((c, i) => `<button class="org-city" data-i="${i}">${FLAGS[c[3]] ? flag(c[3]) : '<span class="flag-x"></span>'}<span>${esc(lang === 'en' && c[4] ? c[4].split('|')[0] : c[0])}</span></button>`).join('')
+        : `<p class="muted small">${t('noCity')}</p>`;
+      $$('[data-i]', list).forEach((b) => (b.onclick = () => {
+        const c = found[+b.dataset.i];
+        setOrigin({ kind: 'city', ll: [c[1], c[2]], it: c[0], en: c[4] || '' });
+        q.value = ''; list.innerHTML = ''; q.blur(); picked();
+      }));
+    };
+    $$('[data-tv]', sh).forEach((b) => (b.onclick = () => {
+      if (!origin) { toast(t('needOrigin')); q.focus(); return; }
+      filters.time = +b.dataset.tv;
+      if (filters.time && filters.sort === 'name') filters.sort = 'near';
+      paint(); onChange();
+    }));
+    paint();
+    if (focus) setTimeout(() => q.focus(), 300);
   }
 
   // foglio dal basso generico (filtri, ordinamento)
@@ -750,7 +1000,7 @@
 
   // ordinamento (bottone con i cursori accanto alla ricerca)
   function openSortSheet(onChange) {
-    const sorts = [['name', 'sortName'], ['alt', 'sortAlt'], ['km', 'sortKm'], ['hair', 'sortHair'], ['rating', 'sortRating']];
+    const sorts = (origin ? [['near', 'sortNear']] : []).concat([['name', 'sortName'], ['alt', 'sortAlt'], ['km', 'sortKm'], ['hair', 'sortHair'], ['rating', 'sortRating']]);
     const sh = openSheet(`
       <div class="sheet-head"><h2 class="h2">${icon('sliders')} ${t('sort')}</h2></div>
       <div class="chips wrap">${sorts.map(([v, k]) => `<button class="chip ${filters.sort === v ? 'on' : ''}" data-s="${v}">${t(k)}</button>`).join('')}</div>
@@ -862,8 +1112,7 @@
     if (!r) return go('explore');
     const fav = Store.isFav(r.id), dr = Store.isDriven(r.id);
     const s = summit(r);
-    const nearby = ROADS.filter((x) => x.id !== r.id).map((x) => [x, haversine(s, summit(x))]).sort((a, b) => a[1] - b[1]).slice(0, 4);
-    const gmaps = `https://www.google.com/maps/dir/${r.wp.map((p) => p.join(',')).join('/')}`;
+    const similar = similarRoads(r);
 
     app.innerHTML = `
       <section class="detail">
@@ -879,15 +1128,17 @@
 
         <div class="actions">
           <button class="act ${fav ? 'on' : ''}" id="a-fav">${icon('heart')}<span>${fav ? t('removeFav') : t('addFav')}</span></button>
-          <button class="act ${dr ? 'on' : ''}" id="a-drv">${icon('flag')}<span>${dr ? t('isDriven') : t('markDriven')}</span></button>
-          <a class="act" href="${gmaps}" target="_blank" rel="noopener">${icon('external')}<span>${t('openMaps')}</span></a>
+          <button class="act ${dr ? 'on' : ''}" id="a-drv">${icon('flag')}<span>${dr ? t(Store.isVerified(r.id) ? 'isVerified' : 'isDriven') : t('markDriven')}</span></button>
+          <button class="act go" id="a-go">${icon('go')}<span>${t('letsGo')}</span></button>
         </div>
         <div class="share-row">
           <button class="act share" id="a-share-road">${icon('share')}<span>${t('shareRoad')}</span></button>
           <button class="act share story" id="a-share-story">${icon('story')}<span>${t('sharePlate')}</span></button>
         </div>
+        <button class="add-trip" id="a-trip">${icon('route')}<span>${t('addToTrip')}</span>${icon('plus')}</button>
 
         <section class="status" id="road-status" aria-live="polite"></section>
+        <section class="wx" id="wx-box" data-road="${r.id}" hidden></section>
 
         <div class="stats">
           <div class="stat">${icon('mountain')}<b>${fmt(r.alt)}<small> m</small></b><span>${t('altitude')}</span></div>
@@ -901,6 +1152,9 @@
           <p class="desc">${esc(r[lang])}</p>
           <div class="tags">${r.tags.map((x) => `<span class="tag">#${esc(tag(x))}</span>`).join('')}</div>
 
+          <h2 class="h2">${t('photos')} <span class="muted small" id="ph-count"></span></h2>
+          <div id="ph-box"></div>
+
           <h2 class="h2">${t('route')}</h2>
           <div class="mini-map" id="roadmap"></div>
           <p class="muted small" id="route-note">${t('routeLoading')}</p>
@@ -913,11 +1167,12 @@
           </form>` : `<button class="btn ghost rv-guest" id="rv-guest">${icon('star')} ${t('writeReview')}</button>`}
           <div id="rv-list"></div>
 
-          <h2 class="h2">${t('nearby')}</h2>
-          <div class="hscroll">${nearby.map(([x, km]) => `
-            <article class="mini-card ${Store.isDriven(x.id) ? 'is-driven' : ''}" data-go="${x.id}">${roadArt(x, { w: 220, h: 130 })}
-              <div><h4>${Store.isDriven(x.id) ? CHK : ''}${esc(x.name)}</h4><span class="muted xs">${Math.round(km)} km · ${fmt(x.alt)} m</span></div>
-            </article>`).join('')}</div>
+          <h2 class="h2">${t('similar')}</h2>
+          <div class="hscroll">${similar.map(([x, km]) => miniCard(x, `${t('simAway').replace('{km}', Math.round(km))} · ${fmt(x.alt)} m`)).join('')}</div>
+          ${(() => {
+            const withRoad = allCurated().concat(Store.myTrips(), Store.publicTrips()).filter((tr) => tr.stops.some((s) => s.r === r.id));
+            return withRoad.length ? `<h2 class="h2">${t('tripsWithRoad')}</h2><div class="hscroll trips" id="road-trips">${withRoad.map(tripCard).join('')}</div>` : '';
+          })()}
 
           <p class="disclaimer">${t('disclaimer')}</p>
         </div>
@@ -929,15 +1184,60 @@
       const on = Store.toggleFav(r.id);
       e.currentTarget.classList.toggle('on', on);
       e.currentTarget.querySelector('span').textContent = on ? t('removeFav') : t('addFav');
+      if (on) maybeAskNotify();
     };
     $('#a-drv').onclick = (e) => {
       if (!user) return openJoinSheet('driven', r, { road: r.id, act: 'driven' });
       const on = Store.toggleDriven(r.id);
       $('#hero-plate').innerHTML = (on ? CHK : '') + 'No.' + r.no;
       e.currentTarget.classList.toggle('on', on);
-      e.currentTarget.querySelector('span').textContent = on ? t('isDriven') : t('markDriven');
+      e.currentTarget.querySelector('span').textContent = on ? t(Store.isVerified(r.id) ? 'isVerified' : 'isDriven') : t('markDriven');
       if (on) toast('🏁 ' + r.name);
+      renderPhotos();
     };
+
+    // foto dei piloti: una per pilota, solo per chi l'ha guidata
+    const renderPhotos = () => {
+      const box = $('#ph-box');
+      if (!box) return;
+      const list = Store.roadPhotos(r.id), me = Auth.current(), drv = Store.isDriven(r.id), mine = !!Store.myPhoto(r.id);
+      $('#ph-count').textContent = list.length ? `· ${list.length}` : '';
+      const cta = !me ? `<button class="btn ghost ph-cta" data-ph-guest>${icon('camera')} ${t('addPhoto')}</button>`
+        : !drv ? `<p class="ph-need">${icon('camera')}<span>${t('photoNeedDriven')}</span></p>`
+        : `<button class="btn primary sm ph-cta" data-ph-add>${icon('camera')} ${t(mine ? 'changePhoto' : 'addPhoto')}</button>`;
+      box.innerHTML = (list.length ? `<div class="ph-row">${list.map((p) => `
+        <figure class="ph ${p.verified ? 'ver' : ''}">
+          <button class="ph-img" data-open="${p.id}" aria-label="${esc(t('photoBy') + ' ' + p.user)}"><img src="${esc(p.url)}" alt="" loading="lazy" decoding="async" />
+            ${p.verified ? `<span class="ph-ver">${icon('check')}${t('verified')}</span>` : ''}</button>
+          <figcaption>${avatar({ name: p.user, avatar: p.avatar, photoUrl: p.userPhoto }, 32)}
+            <div class="ph-who"><b>${esc(p.user)}</b><span>${esc(p.car)}</span></div>
+            ${p.mine ? `<button class="link xs" data-ph-del>${t('deletePhoto')}</button>` : `<button class="link xs rv-flag" data-ph-flag="${p.id}">${t('reportPhoto')}</button>`}
+          </figcaption>
+        </figure>`).join('')}</div>` : `<p class="empty ph-empty">${t('noPhotos')}</p>`) + cta;
+      const g = $('[data-ph-guest]', box); if (g) g.onclick = () => openJoinSheet('photo', r);
+      const a = $('[data-ph-add]', box); if (a) a.onclick = () => pickImage().then((file) => openPhotoSheet(r, file, () => { renderPhotos(); refreshDriven(); }));
+      $$('[data-open]', box).forEach((b) => (b.onclick = () => { const p = list.find((x) => x.id === b.dataset.open); if (p) openViewer(p); }));
+      const del = $('[data-ph-del]', box);
+      if (del) del.onclick = async () => {
+        if (!del.classList.contains('armed')) { del.classList.add('armed'); del.textContent = t('confirmReport'); setTimeout(() => { del.classList.remove('armed'); del.textContent = t('deletePhoto'); }, 4000); return; }
+        try { await Store.deleteRoadPhoto(r.id); renderPhotos(); refreshDriven(); } catch (err) { toast(t('syncError')); }
+      };
+      $$('[data-ph-flag]', box).forEach((b) => (b.onclick = async () => {
+        if (!Auth.current()) return openJoinSheet('flag', r);
+        if (!b.classList.contains('armed')) { b.classList.add('armed'); b.textContent = t('confirmReport'); setTimeout(() => { b.classList.remove('armed'); b.textContent = t('reportPhoto'); }, 4000); return; }
+        try { await Store.reportPhoto(r.id, b.dataset.phFlag); toast(t('reported')); renderPhotos(); } catch (err) { toast(t('syncError')); }
+      }));
+    };
+    // il bottone "Strada guidata" diventa "Strada verificata" con la foto verificata
+    const refreshDriven = () => {
+      const b = $('#a-drv');
+      if (b && Store.isDriven(r.id)) b.querySelector('span').textContent = t(Store.isVerified(r.id) ? 'isVerified' : 'isDriven');
+    };
+    renderPhotos();
+    Store.loadRoadPhotos(r.id).then(() => { if (location.hash === '#road-' + r.id) renderPhotos(); }).catch(() => {});
+    $('#a-go').onclick = () => openGoSheet(r);
+    $('#a-trip').onclick = () => openAddToTrip(r);
+    if ($('#road-trips')) bindTripCards($('#road-trips'));
     $('#a-share-road').onclick = () => shareRoad(r);
     // la storia si può condividere sempre: con la placca "Strada guidata" se l'hai percorsa, "Strada da guidare" altrimenti
     $('#a-share-story').onclick = () => openStorySheet(r);
@@ -975,6 +1275,8 @@
       }));
     };
     renderStatus();
+    renderWxBox(r);
+    loadWx();
 
     // recensioni
     let rating = 0;
@@ -985,7 +1287,7 @@
       $('#rv-sum').innerHTML = rt ? `${stars(rt.avg, 'sm')} ${rt.avg.toFixed(1)} · ${rt.count}` : '';
       $('#rv-list').innerHTML = list.length ? list.map((v) => `
         <div class="review">
-          <div class="row between"><div><b>${esc(v.user)}</b> <span class="muted xs">${esc(v.car || '')}</span></div>${stars(v.rating, 'sm')}</div>
+          <div class="row between"><div class="rv-who">${avatar({ name: v.user, photoUrl: v.photo || '' , avatar: (v.user || '').length }, 32)}<div><b>${esc(v.user)}</b> <span class="muted xs">${esc(v.car || '')}</span></div></div>${stars(v.rating, 'sm')}</div>
           <p>${esc(v.text)}</p>
           <div class="row between"><span class="muted xs">${v.date}</span>${v.mine
             ? `<button class="link xs" data-del="${v.id}">${t('deleteReview')}</button>`
@@ -1042,6 +1344,19 @@
     }
   }
 
+  // strade simili: carattere (tag, difficoltà, quota, tornanti) + un premio per quelle vicine
+  function similarRoads(r, n) {
+    const s = summit(r), tg = new Set(r.tags);
+    return ROADS.filter((x) => x.id !== r.id).map((x) => {
+      const shared = x.tags.filter((k) => tg.has(k)).length, union = new Set(r.tags.concat(x.tags)).size || 1;
+      const km = haversine(s, summit(x));
+      const score = 3 * shared / union + 1.2 * (1 - Math.abs(x.diff - r.diff) / 4) +
+        (1 - Math.min(1, Math.abs(x.alt - r.alt) / 1500)) + 0.8 * (1 - Math.min(1, Math.abs(x.hairpins - r.hairpins) / 40)) +
+        2.5 * Math.exp(-km / 120);
+      return [x, km, score];
+    }).sort((a, b) => b[2] - a[2]).slice(0, n || 6);
+  }
+
   async function loadRoute(r) {
     if (r.noRouting) return { coords: r.wp, approx: true }; // strada non instradabile su OSRM (es. a pedaggio stagionale)
     const pre = (await allRoutes())[r.id]; // tracciati pre-calcolati (tools/build-data.ps1)
@@ -1063,6 +1378,626 @@
     } catch (e) {
       return { coords: r.wp, approx: true };
     }
+  }
+
+  // ───────────── FOTO ─────────────
+  // apre la scelta della foto del telefono (va chiamata dentro il tocco dell'utente)
+  function pickImage() {
+    return new Promise((res) => {
+      const inp = document.createElement('input');
+      inp.type = 'file'; inp.accept = 'image/*';
+      inp.style.cssText = 'position:fixed;left:-999px;opacity:0';
+      document.body.appendChild(inp);
+      inp.onchange = () => { const f = inp.files && inp.files[0]; inp.remove(); if (f) res(f); };
+      inp.click();
+    });
+  }
+  const fmtKm1 = (d) => (d < 0.1 ? '< 0.1' : d < 10 ? d.toFixed(1) : String(Math.round(d))).replace('.', lang === 'it' ? ',' : '.');
+  const phoneSpot = () => new Promise((res) => {
+    if (!navigator.geolocation) return res(null);
+    navigator.geolocation.getCurrentPosition((p) => res([p.coords.latitude, p.coords.longitude]), () => res(null), { enableHighAccuracy: true, timeout: 12000, maximumAge: 60000 });
+  });
+
+  // "La tua foto della strada": cerca la posizione nella foto, poi (se serve) quella del telefono.
+  // Basta una delle due vicina al tracciato (~2 km) per la placca VERIFICATO.
+  async function openPhotoSheet(r, file, onDone) {
+    const prevUrl = URL.createObjectURL(file);
+    const sh = openSheet(`
+      <div class="sheet-head"><h2 class="h2">${icon('camera')} ${t('photoTitle')}</h2><button class="link" data-close>${t('close')}</button></div>
+      <div class="ph-prev"><img src="${prevUrl}" alt="" /></div>
+      <ul class="ph-checks"><li class="wait">${t('phChecking')}</li></ul>
+      <div class="ph-result" hidden></div>
+      <p class="muted small ph-note">${t('phPublic')}</p>
+      <button class="btn primary" id="ph-pub" disabled>${t('publishPhoto')}</button>`, () => URL.revokeObjectURL(prevUrl));
+    sh.classList.add('ph-sheet');
+    const checks = $('.ph-checks', sh);
+    const line = (cls, txt) => { const li = document.createElement('li'); li.className = cls; li.textContent = txt; checks.appendChild(li); return li; };
+    const open = () => document.body.contains(sh);
+    let by = '';
+    const [coords, spot] = await Promise.all([loadRoute(r).then((x) => x.coords), TougePhoto.gps(file)]);
+    if (!open()) return;
+    checks.innerHTML = '';
+    if (spot) {
+      const d = TougePhoto.distKm(spot, coords);
+      if (d <= TougePhoto.NEAR_KM) { by = 'photo'; line('ok', t('phExifNear').replace('{km}', fmtKm1(d))); }
+      else line('no', t('phExifFar').replace('{km}', fmtKm1(d)));
+    } else line('no', t('phNoExif'));
+    if (!by) {
+      const li = line('wait', t('phGpsChecking'));
+      const me = await phoneSpot();
+      if (!open()) return;
+      if (!me) { li.className = 'no'; li.textContent = t('phGpsNo'); }
+      else {
+        const d = TougePhoto.distKm(me, coords);
+        if (d <= TougePhoto.NEAR_KM) { by = 'phone'; li.className = 'ok'; li.textContent = t('phGpsNear').replace('{km}', fmtKm1(d)); }
+        else { li.className = 'no'; li.textContent = t('phGpsFar').replace('{km}', fmtKm1(d)); }
+      }
+    }
+    const res = $('.ph-result', sh);
+    res.hidden = false;
+    res.className = 'ph-result ' + (by ? 'yes' : 'no');
+    res.innerHTML = `<span class="join-plate ph-plate">${drivenPlate(r, !!by)}</span><p>${by ? `<b>${t('phYes')}</b>` : t('phNo')}</p>`;
+    fitPlates(res);
+    const pub = $('#ph-pub', sh);
+    pub.disabled = false;
+    pub.onclick = async () => {
+      pub.classList.add('loading'); pub.textContent = t('uploading');
+      try {
+        const blob = await TougePhoto.resize(file, Auth.cloud ? 1600 : 1000, Auth.cloud ? 0.82 : 0.72);
+        await Store.addRoadPhoto(r.id, blob, by);
+        toast(by ? '🏁 ' + t('phVerifiedToast') : t('phDone'));
+        $('[data-close]', sh).click();
+        if (onDone) onDone();
+      } catch (err) {
+        pub.classList.remove('loading'); pub.textContent = t('publishPhoto');
+        toast(t(/^err/.test(err.message) ? err.message : 'errPhotoUpload'));
+      }
+    };
+  }
+
+  // foto a schermo intero (tocca per chiudere)
+  function openViewer(p) {
+    const el = document.createElement('div');
+    el.className = 'ph-view';
+    el.innerHTML = `<img src="${esc(p.url)}" alt="" /><div class="ph-view-cap">${p.verified ? `<span class="ph-ver">${icon('check')}${t('verified')}</span>` : ''}<b>${esc(p.user)}</b> ${esc(p.car)} · ${esc(p.date)}</div><button class="round-btn" aria-label="${t('close')}">${icon('close')}</button>`;
+    el.onclick = () => el.remove();
+    document.body.appendChild(el);
+  }
+
+  // foto profilo / auto: rimpicciolita sul telefono e salvata nel profilo
+  async function saveProfilePhoto(kind, file) {
+    try {
+      const blob = file ? (kind === 'photo'
+        ? await TougePhoto.resize(file, Auth.cloud ? 480 : 320, 0.85, true)
+        : await TougePhoto.resize(file, Auth.cloud ? 1400 : 900, Auth.cloud ? 0.82 : 0.72)) : null;
+      await Store.setProfilePhoto(kind, blob);
+      toast(t('photoSaved'));
+      route();
+    } catch (err) { toast(t(/^err/.test(err.message) ? err.message : 'errPhotoUpload')); }
+  }
+  function openPhotoAsk() {
+    const u = Auth.current();
+    if (!u) return;
+    const sh = openSheet(`
+      <div class="join">
+        <div class="ask-avatar">${avatar(u, 92)}<span class="cam">${icon('camera')}</span></div>
+        <h2 class="h2">${t('photoAskTitle')}</h2>
+        <p class="join-text">${t('photoAskText')}</p>
+        <button class="btn primary" id="pa-go">${icon('camera')} ${t('photoAskCta')}</button>
+        <div class="join-foot"><span></span><button class="link muted" data-close>${t('later')}</button></div>
+      </div>`);
+    sh.classList.add('join-sheet');
+    $('#pa-go', sh).onclick = () => { pickImage().then((f) => saveProfilePhoto('photo', f)); sh.remove(); };
+  }
+
+  // ───────────── AVVISI E NOTIFICHE ─────────────
+  // Gli avvisi della campanella si calcolano sul telefono all'apertura (stato strade, meteo, novità).
+  // Le push (app chiusa) le spedisce il servizio Supabase "touge-notify" con le stesse regole.
+  const MONTHS_IT = ['Gen', 'Feb', 'Mar', 'Apr', 'Mag', 'Giu', 'Lug', 'Ago', 'Set', 'Ott', 'Nov', 'Dic'];
+  // chiusura stagionale: chiusa di sicuro nei mesi interni (il primo e l'ultimo mese sono di passaggio)
+  function seasonClosed(r, d) {
+    if (!r.closure) return false;
+    const [a, b] = r.closure.split(/[–-]/).map((s) => MONTHS_IT.indexOf(s.trim()));
+    if (a < 0 || b < 0) return false;
+    const m = (d || new Date()).getMonth();
+    return a <= b ? m > a && m < b : m > a || m < b;
+  }
+  const openish = (r) => { const st = Store.roadStatus(r.id); return st ? st.status === 'open' : !seasonClosed(r); };
+  const ymd = (d) => `${d.getFullYear()}-${String(d.getMonth() + 1).padStart(2, '0')}-${String(d.getDate()).padStart(2, '0')}`;
+  // giovedì, venerdì e sabato: le date del weekend in arrivo
+  function weekendDays() {
+    const d = new Date(), dow = d.getDay();
+    if (![4, 5, 6].includes(dow)) return null;
+    const add = (n) => { const x = new Date(d); x.setDate(d.getDate() + n); return ymd(x); };
+    return { sat: add(6 - dow), sun: add(7 - dow) };
+  }
+  function sunny(r, wk) {
+    const w = window.TougeWx && TougeWx.get(r.id);
+    if (!w) return [];
+    return ['sat', 'sun'].filter((k) => { const d = w.days.find((x) => x.day === wk[k]); return d && (d.k === 'sun' || d.k === 'part') && !d.snow && d.pop < 40; });
+  }
+  async function computeAlerts() {
+    const user = Auth.current();
+    if (!user) return [];
+    const P = Store.notifyPrefs(), favs = Store.favorites().map((id) => byId[id]).filter(Boolean), out = [], now = new Date().toISOString();
+    if (P.reopen) favs.forEach((r) => {
+      const st = Store.roadStatus(r.id);
+      if (r.closure && st && st.status === 'open' && Date.now() - Date.parse(st.at) < 14 * 864e5) {
+        out.push({ id: 'reopen:' + r.id + ':' + st.at.slice(0, 10), icon: icon('flag'), road: r.id, at: st.at, title: t('alReopen').replace('{n}', r.name), sub: t('alReopenSub') });
+      }
+    });
+    const wk = weekendDays();
+    if (wk && (P.wxFav || (P.wxNear && origin)) && window.TougeWx && (await TougeWx.load(ROADS, summit))) {
+      const label = (ds) => ds.map((k) => t(k)).join(' ' + t('and') + ' ');
+      if (P.wxFav) {
+        const ok = favs.map((r) => [r, sunny(r, wk)]).filter(([r, ds]) => ds.length && openish(r));
+        if (ok.length) out.push({ id: 'wxfav:' + wk.sat, icon: wxIcon('sun'), road: ok[0][0].id, at: now,
+          title: t(ok.length > 2 ? 'alWxFavMore' : ok.length === 2 ? 'alWxFav2' : 'alWxFav').replace('{n}', ok[0][0].name).replace('{k}', ok.length - 1), sub: t('alWxFavSub').replace('{d}', label(ok[0][1])) });
+      }
+      if (P.wxNear && origin) {
+        const ok = ROADS.filter((r) => driveMin(r) <= P.nearMin && openish(r) && sunny(r, wk).length);
+        if (ok.length) out.push({ id: 'wxnear:' + wk.sat, icon: wxIcon('sun'), near: P.nearMin, at: now,
+          title: (ok.length === 1 ? t('alWxNear1') : t('alWxNear')).replace('{k}', ok.length).replace('{t}', fmtDur(P.nearMin)), sub: t('alWxNearSub').replace('{c}', originLabel()) });
+      }
+    }
+    if (P.news && favs.length) {
+      try {
+        const n = await Store.newsSince(favs.map((r) => r.id), new Date(Date.now() - 7 * 864e5).toISOString());
+        if (n.length) {
+          n.sort((a, b) => (b.at > a.at ? 1 : -1));
+          const p = n.filter((x) => x.kind === 'photo').length;
+          out.push({ id: 'news:' + String(n[0].at).slice(0, 16), icon: icon('camera'), road: n[0].road, at: n[0].at,
+            title: t('alNews'), sub: t('alNewsSub').replace('{p}', p).replace('{r}', n.length - p).replace('{n}', (byId[n[0].road] || {}).name || '') });
+        }
+      } catch (e) { /* senza novità */ }
+    }
+    return out.sort((a, b) => (String(b.at) > String(a.at) ? 1 : -1));
+  }
+  let alertsCache = null;
+  async function refreshBell() {
+    const list = (alertsCache = await computeAlerts());
+    const read = lsGet('touge.alertsRead', []), n = list.filter((a) => !read.includes(a.id)).length;
+    const b = $('#bell .bell-n');
+    if (b) { b.hidden = !n; b.textContent = n > 9 ? '9+' : n; }
+  }
+  function openAlerts() {
+    const sh = openSheet(`
+      <div class="sheet-head"><h2 class="h2">${icon('bell')} ${t('alerts')}</h2><button class="link" data-close>${t('close')}</button></div>
+      <div class="al-list" id="al-list"><p class="muted small">${t('alertsLoading')}</p></div>`);
+    sh.classList.add('al-sheet');
+    const paint = (list) => {
+      const read = lsGet('touge.alertsRead', []);
+      $('#al-list', sh).innerHTML = list.length ? list.map((a, i) => `
+        <button class="al ${read.includes(a.id) ? '' : 'new'}" data-i="${i}"><span class="al-ic">${a.icon}</span>
+          <span class="al-txt"><b>${esc(a.title)}</b><small>${esc(a.sub)}</small></span>${icon('chev', 'day-chev')}</button>`).join('')
+        : `<p class="empty">${t('noAlerts')}</p>`;
+      lsSet('touge.alertsRead', [...new Set(read.concat(list.map((a) => a.id)))].slice(-200));
+      const bn = $('#bell .bell-n'); if (bn) bn.hidden = true;
+      $$('[data-i]', sh).forEach((b) => (b.onclick = () => {
+        const a = list[+b.dataset.i];
+        sh.remove();
+        if (a.road) return go('road-' + a.road);
+        if (a.near) { filters.time = a.near; filters.sort = 'near'; if (location.hash === '#explore') route(); else go('explore'); }
+      }));
+    };
+    if (alertsCache) paint(alertsCache);
+    computeAlerts().then((l) => { alertsCache = l; if (document.body.contains(sh)) paint(l); });
+  }
+
+  // push: possibili solo nell'app online, con il servizio configurato (chiave pubblica in config.js)
+  const isIOS = /iP(hone|ad|od)/.test(navigator.userAgent) || (navigator.platform === 'MacIntel' && navigator.maxTouchPoints > 1);
+  const standalone = () => (window.matchMedia && matchMedia('(display-mode: standalone)').matches) || navigator.standalone === true;
+  const vapidKey = () => (window.TOUGE_CONFIG && window.TOUGE_CONFIG.vapidPublicKey) || '';
+  function pushState() {
+    if (window.TOUGE_ARTIFACT || !Auth.cloud) return 'nobrowser';
+    if (!('serviceWorker' in navigator) || !('PushManager' in window) || !('Notification' in window)) return isIOS && !standalone() ? 'ios' : 'nobrowser';
+    if (!vapidKey()) return 'soon';
+    if (Notification.permission === 'denied') return 'denied';
+    return Store.notifyPrefs().push && Notification.permission === 'granted' ? 'on' : 'off';
+  }
+  const b64u = (s) => { const b = atob((s + '='.repeat((4 - (s.length % 4)) % 4)).replace(/-/g, '+').replace(/_/g, '/')); return Uint8Array.from(b, (c) => c.charCodeAt(0)); };
+  // da chiamare direttamente nel tocco: il permesso va chiesto subito
+  async function enablePush() {
+    const perm = await Notification.requestPermission();
+    if (perm !== 'granted') { toast(t('pushDenied')); return false; }
+    try {
+      const reg = await navigator.serviceWorker.ready;
+      const sub = (await reg.pushManager.getSubscription()) || (await reg.pushManager.subscribe({ userVisibleOnly: true, applicationServerKey: b64u(vapidKey()) }));
+      await Store.savePushSub(sub.toJSON());
+      await Store.setNotifyPrefs({ push: true }, startLL(), lang);
+      toast(t('pushDone'));
+      return true;
+    } catch (e) { toast(t('syncError')); return false; }
+  }
+  async function disablePush() {
+    try {
+      const reg = await navigator.serviceWorker.ready, sub = await reg.pushManager.getSubscription();
+      if (sub) { await Store.removePushSub(sub.endpoint); await sub.unsubscribe(); }
+    } catch (e) { /* ok */ }
+    await Store.setNotifyPrefs({ push: false }, startLL(), lang).catch(() => {});
+    toast(t('pushStopped'));
+  }
+  // al primo ♥: invito (una volta sola) ad accendere le notifiche
+  function maybeAskNotify() {
+    if (lsGet('touge.notifyAsked', false) || Store.favorites().length !== 1) return;
+    lsSet('touge.notifyAsked', true);
+    setTimeout(openNotifyAsk, 700);
+  }
+  function openNotifyAsk() {
+    const st = pushState(), can = st === 'off';
+    const why = { ios: 'pushIos', soon: 'pushSoon', nobrowser: 'pushNoBrowser', denied: 'pushDenied' }[st];
+    const sh = openSheet(`
+      <div class="join">
+        <div class="ask-bell">${icon('bell')}</div>
+        <h2 class="h2">${t('askNotifyTitle')}</h2>
+        <p class="join-text">${t('askNotifyText')}</p>
+        ${can ? `<button class="btn primary" id="an-go">${icon('bell')} ${t('askNotifyCta')}</button>` : why ? `<p class="ask-why">${t(why)}</p>` : ''}
+        <p class="muted small ask-inapp">${t('askNotifyInApp')}</p>
+        <div class="join-foot"><span></span><button class="link muted" data-close>${can ? t('later') : 'OK'}</button></div>
+      </div>`);
+    sh.classList.add('join-sheet');
+    const b = $('#an-go', sh);
+    if (b) b.onclick = () => { enablePush().then(() => sh.remove()); };
+  }
+  // Pilota → Notifiche
+  function renderNotif(box) {
+    const st = pushState(), P = Store.notifyPrefs();
+    const msg = { on: 'pushOn', off: 'pushOff', ios: 'pushIos', nobrowser: 'pushNoBrowser', soon: 'pushSoon', denied: 'pushDenied' }[st];
+    const sw = (attr, on) => `<label class="switch"><input type="checkbox" ${attr} ${on ? 'checked' : ''} /><span></span></label>`;
+    const near = `<div class="chips wrap nt-near">${[60, 120, 180].map((v) => `<button class="chip ${P.nearMin === v ? 'on' : ''}" data-nm="${v}">${t('within').replace('{t}', fmtDur(v))}</button>`).join('')}</div>
+      <small>${origin ? `${icon('pin')} ${esc(originLabel())} · <button class="link" data-org>${t('change')}</button>` : `${t('nNearNeed')} <button class="link" data-org>${t('setOrigin')}</button>`}</small>`;
+    box.innerHTML = `
+      <div class="nt-row nt-push"><span class="nt-ic">${icon('bell')}</span><div class="nt-txt"><b>${t('pushTitle')}</b><small>${t(msg)}</small></div>${st === 'on' || st === 'off' ? sw('data-push', st === 'on') : ''}</div>
+      ${[['reopen', 'nReopen', 'nReopenSub'], ['wxFav', 'nWxFav', 'nWxFavSub'], ['wxNear', 'nWxNear', 'nWxNearSub'], ['news', 'nNews', 'nNewsSub']].map(([k, a, b]) => `
+        <div class="nt-row"><div class="nt-txt"><b>${t(a)}</b><small>${t(b)}</small>${k === 'wxNear' && P.wxNear ? near : ''}</div>${sw(`data-k="${k}"`, P[k])}</div>`).join('')}`;
+    const save = (p) => Store.setNotifyPrefs(p, startLL(), lang).then(() => renderNotif(box), () => toast(t('syncError')));
+    $$('[data-k]', box).forEach((i) => (i.onchange = () => save({ [i.dataset.k]: i.checked })));
+    $$('[data-nm]', box).forEach((b) => (b.onclick = () => save({ nearMin: +b.dataset.nm })));
+    $$('[data-org]', box).forEach((b) => (b.onclick = () => openOriginSheet(false, () => renderNotif(box))));
+    const p = $('[data-push]', box);
+    if (p) p.onchange = () => (p.checked ? enablePush() : disablePush()).then(() => renderNotif(box));
+  }
+
+  // ───────────── ITINERARI ─────────────
+  let draft = null; // itinerario in modifica (anche nuovo, non ancora salvato)
+  const curated = (id) => {
+    const c = (window.TRIPS || []).find((x) => x.id === id);
+    return c && { id: c.id, curated: true, title: c[lang].title, desc: c[lang].desc, stops: c.stops.map((r) => ({ r })), hours: c.hours || 5, public: true, user: 'TOUGE' };
+  };
+  const allCurated = () => (window.TRIPS || []).map((c) => curated(c.id));
+  const tripRoads = (tr) => tr.stops.map((s) => byId[s.r]).filter(Boolean);
+  const startLL = () => (origin ? origin.ll : null);
+  // curati: l'app sceglie ordine e lati (dalla tua partenza, se c'è); dei piloti: ordine salvato, lati calcolati
+  const tripSeq = (tr) => (tr.curated ? TougeTrip.order(tripRoads(tr), startLL()) : TougeTrip.orient(tripRoads(tr), startLL()));
+  const r5 = (m) => Math.max(5, Math.round(m / 5) * 5);
+  function tripQuick(tr) {
+    let km = 0, cur = null;
+    const seq = tripSeq(tr);
+    seq.forEach((s) => { if (cur) km += TougeTrip.hav(cur, TougeTrip.entry(s.r, s.rev)) * 1.3; km += s.r.km; cur = TougeTrip.exit(s.r, s.rev); });
+    return { n: seq.length, km: Math.round(km) };
+  }
+  function tripCard(tr) {
+    const roads = tripRoads(tr);
+    if (!roads.length) return '';
+    const q = tripQuick(tr), who = tr.curated ? t('byTouge') : t('byPilot').replace('{n}', tr.user);
+    return `<article class="trip-card ${tr.curated ? 'cur' : ''}" data-trip="${esc(tr.id)}">
+      <div class="trip-art">${roadArt(roads[0], { w: 260, h: 150 })}<span class="trip-n"><b>${q.n}</b> ${t('passesN')}</span>
+        ${tr.mine ? `<span class="trip-vis ${tr.public ? 'pub' : ''}">${t(tr.public ? 'tripPublicOn' : 'tripPrivateOn')}</span>` : ''}</div>
+      <div><h4>${esc(tr.title)}</h4><span class="muted xs">≈ ${fmt(q.km)} km · ${esc(who)}</span></div></article>`;
+  }
+  const newTripCard = () => `<button class="trip-card trip-new" data-newtrip>${icon('plus')}<b>${t('createTrip')}</b><span>${t('createTripSub')}</span></button>`;
+  function bindTripCards(root) {
+    $$('[data-trip]', root).forEach((c) => (c.onclick = () => go('trip-' + c.dataset.trip)));
+    $$('[data-newtrip]', root).forEach((b) => (b.onclick = () => startNewTrip()));
+  }
+  function startNewTrip(firstRoad) {
+    if (!Auth.current()) return openJoinSheet('trip', firstRoad);
+    draft = { title: '', stops: firstRoad ? [{ r: firstRoad.id }] : [], hours: 5, manual: false, public: false };
+    go('tripedit');
+  }
+  const autoOrder = (stops) => TougeTrip.order(stops.map((s) => byId[s.r]).filter(Boolean), null).map((s) => ({ r: s.r.id }));
+
+  // "Aggiungi a un itinerario" dalla pagina strada
+  function openAddToTrip(r) {
+    if (!Auth.current()) return openJoinSheet('trip', r);
+    const mine = Store.myTrips();
+    const sh = openSheet(`
+      <div class="sheet-head"><h2 class="h2">${icon('route')} ${t('addToTrip')}</h2><button class="link" data-close>${t('close')}</button></div>
+      <div class="att-list">${mine.map((tr) => `<button class="att" data-id="${esc(tr.id)}"><b>${esc(tr.title)}</b><span>${tr.stops.length} ${t('passesN')}${tr.stops.some((s) => s.r === r.id) ? ' · ✓' : ''}</span></button>`).join('')}</div>
+      <button class="btn primary" id="att-new">${icon('plus')} ${t('newTripWith')}</button>`);
+    $('#att-new', sh).onclick = () => { sh.remove(); startNewTrip(r); };
+    $$('[data-id]', sh).forEach((b) => (b.onclick = async () => {
+      const tr = mine.find((x) => x.id === b.dataset.id);
+      if (tr.stops.some((s) => s.r === r.id)) return toast(t('alreadyIn').replace('{t}', tr.title));
+      if (tr.stops.length >= TougeTrip.MAX) return toast(t('tripMax'));
+      let stops = tr.stops.concat({ r: r.id });
+      if (!tr.manual) stops = autoOrder(stops);
+      try { await Store.saveTrip(Object.assign({}, tr, { stops })); toast(t('addedTo').replace('{t}', tr.title)); sh.remove(); }
+      catch (e) { toast(t('syncError')); }
+    }));
+  }
+
+  // pagina itinerario: riepilogo, mappa, giorni con i bottoni Google Maps
+  async function viewTrip(id, user) {
+    app.innerHTML = `<p class="empty">${t('tripLoading')}</p>`;
+    const tr = id.startsWith('c-') ? curated(id) : await Store.getTrip(id).catch(() => null);
+    if (location.hash !== '#trip-' + id) return;
+    const backBtn = `<button class="round-btn back" onclick="history.length > 1 ? history.back() : (location.hash='#explore')" aria-label="back">${icon('back')}</button>`;
+    if (!tr || tripRoads(tr).length < 1) { app.innerHTML = `<header class="top">${backBtn}</header><p class="empty">${t('tripNotFound')}</p>`; return; }
+    let hours = tr.hours || 5;
+    const seq = tripSeq(tr), first = seq[0].r;
+    const who = tr.curated ? t('byTouge') : t('byPilot').replace('{n}', tr.user) + (tr.car ? ' · ' + tr.car : '');
+    app.innerHTML = `
+      <section class="detail trip">
+        <div class="detail-hero trip-hero">${roadArt(first, { w: 400, h: 300, stripes: true })}<div class="hero-shade"></div>
+          ${backBtn}
+          <div class="detail-title">
+            <span class="kicker">峠 ${t('itinerary')}</span>
+            <h1>${esc(tr.title)}</h1>
+            <div class="small trip-who">${esc(who)}</div>
+          </div>
+        </div>
+        <div class="stats four trip-stats">
+          <div class="stat">${icon('mountain')}<b>${seq.length}</b><span>${t('passesN')}</span></div>
+          <div class="stat">${icon('road')}<b id="ts-km">—</b><span>km</span></div>
+          <div class="stat">${icon('clock')}<b id="ts-time">—</b><span>${t('drive')}</span></div>
+          <div class="stat">${icon('flag')}<b id="ts-days">—</b><span>${t('daysN')}</span></div>
+        </div>
+        <div class="pad">
+          ${tr.desc ? `<p class="desc">${esc(tr.desc)}</p>` : ''}
+          <div class="trip-hours"><span>${t('hoursPerDay')}</span><div class="chips wrap">${[3, 5, 7].map((h) => `<button class="chip ${h === hours ? 'on' : ''}" data-h="${h}">${h}h</button>`).join('')}</div></div>
+          <p class="trip-from">${origin ? t('tripFrom').replace('{c}', esc(originLabel())) : t('tripNoOrigin')} <button class="link" id="trip-org">${t(origin ? 'change' : 'setOrigin')}</button></p>
+          <div class="mini-map" id="tripmap"></div>
+          <p class="muted small" id="trip-note">${t('tripLoading')}</p>
+          <div id="trip-days"></div>
+          <div class="trip-actions" id="trip-actions"></div>
+          <p class="disclaimer">${t('disclaimer')}</p>
+        </div>
+      </section>`;
+
+    // mappa: tracciati dei passi in rosso, trasferimenti tratteggiati
+    let tmap = null, linkLayer = null;
+    if (window.L) {
+      tmap = map = L.map('tripmap', { zoomControl: true, scrollWheelZoom: false, preferCanvas: true });
+      baseLayer(map);
+      tmap.fitBounds(L.latLngBounds(seq.flatMap((s) => s.r.wp)), { padding: [24, 24] });
+      linkLayer = L.layerGroup().addTo(tmap);
+      seq.forEach((s, i) => {
+        L.marker(summit(s.r), { icon: L.divIcon({ className: '', html: `<div class="wp trip-wp">${i + 1}</div>`, iconSize: [26, 26], iconAnchor: [13, 13] }) }).addTo(tmap).bindTooltip(`${i + 1}. ${s.r.name}`);
+        loadRoute(s.r).then(({ coords }) => { if (map === tmap) L.polyline(coords, { color: '#e2231a', weight: 4 }).addTo(tmap); });
+      });
+    }
+    const drawLinks = (p) => {
+      if (!linkLayer || map !== tmap) return;
+      linkLayer.clearLayers();
+      if (p.line) L.polyline(p.line, { color: '#ffcc00', weight: 3, opacity: 0.8, dashArray: '2 7' }).addTo(linkLayer);
+      else p.stops.forEach((s, i) => { if (i) L.polyline([TougeTrip.exit(p.stops[i - 1].r, p.stops[i - 1].rev), TougeTrip.entry(s.r, s.rev)], { color: '#ffcc00', weight: 3, dashArray: '2 7' }).addTo(linkLayer); });
+    };
+
+    const dirOf = (s) => {
+      const a = s.r.wp[0], b = s.r.wp[s.r.wp.length - 1];
+      return compass(bearing([(a[0] + b[0]) / 2, (a[1] + b[1]) / 2], TougeTrip.entry(s.r, s.rev)));
+    };
+    let last = null;
+    const renderPlan = (p) => {
+      last = p;
+      $('#ts-km').innerHTML = fmt(Math.round(p.km));
+      $('#ts-time').textContent = fmtDur(r5(p.min));
+      $('#ts-days').textContent = p.days.length;
+      $('#trip-note').textContent = p.exact ? t('tripExact') : t('tripEstimate');
+      $('#trip-days').innerHTML = p.days.map((d, i) => `
+        <section class="day">
+          <header class="day-head"><b>${t('day')} ${i + 1}</b><span>≈ ${fmtDur(r5(d.min))} ${t('drive')} · ${fmt(Math.round(d.km))} km</span></header>
+          <ol class="day-stops">${d.stops.map((s) => `
+            ${s.inMin ? `<li class="day-move">${icon('go')}<span>${t('transfer')} ≈ ${fmtDur(r5(s.inMin))} · ${fmt(Math.round(s.inKm))} km</span></li>` : ''}
+            <li class="day-stop ${Store.isDriven(s.r.id) ? 'is-driven' : ''}" data-go="${s.r.id}"><span class="day-no">${Store.isDriven(s.r.id) ? CHK : ''}${s.r.no}</span>
+              <div><b>${esc(s.r.name)}</b><small>${t('entryFrom').replace('{d}', dirOf(s))} · ${fmt(s.r.alt)} m · ${Math.round(s.roadKm)} km</small></div>${icon('chev', 'day-chev')}</li>`).join('')}
+          </ol>
+          <div class="day-go">${d.links.map((u, k) => `<a class="btn primary sm" href="${u}" target="_blank" rel="noopener">${icon('go')} ${t('letsGo')}${d.links.length > 1 ? ` · ${t('legN')} ${k + 1}` : ''}</a>`).join('')}</div>
+        </section>`).join('');
+      $$('#trip-days [data-go]').forEach((c) => (c.onclick = () => go('road-' + c.dataset.go)));
+      drawLinks(p);
+    };
+    const plan = async (exact) => {
+      const p = await TougeTrip.plan(seq, startLL(), hours, exact);
+      if (location.hash === '#trip-' + id) renderPlan(p);
+    };
+    plan(false).then(() => { if (!OFFLINE_MAP) plan(true); });
+
+    $$('[data-h]').forEach((b) => (b.onclick = () => {
+      hours = +b.dataset.h;
+      $$('[data-h]').forEach((x) => x.classList.toggle('on', x === b));
+      plan(!!(last && last.exact));
+      if (tr.mine) Store.saveTrip(Object.assign({}, tr, { hours })).catch(() => {});
+    }));
+    $('#trip-org').onclick = () => openOriginSheet(false, () => route());
+
+    // azioni: proprietario → modifica / pubblica / elimina; altri → copia, segnala; per tutti → invia link
+    const acts = $('#trip-actions');
+    const link = location.origin + location.pathname + '#trip-' + id;
+    acts.innerHTML = (tr.mine ? `
+        <button class="btn ghost" id="ta-edit">${icon('edit')} ${t('tripEditBtn')}</button>
+        <label class="te-pub"><input type="checkbox" id="ta-pub" ${tr.public ? 'checked' : ''} /><span>${t('tripPublic')}</span></label>`
+      : `<button class="btn ghost" id="ta-copy">${icon('plus')} ${t('copyTrip')}</button>`) +
+      `<button class="btn ghost" id="ta-link">${icon('share')} ${t('shareRoad')}</button>` +
+      (tr.mine ? `<button class="link danger" id="ta-del">${t('deleteTrip')}</button>` : !tr.curated ? `<button class="link rv-flag" id="ta-flag">${t('reportTrip')}</button>` : '');
+    const on = (sel, fn) => { const el = $(sel, acts); if (el) el.onclick = fn; };
+    on('#ta-edit', () => { draft = JSON.parse(JSON.stringify(tr)); go('tripedit-' + tr.id); });
+    const pub = $('#ta-pub', acts);
+    if (pub) pub.onchange = async () => {
+      try { await Store.saveTrip(Object.assign({}, tr, { public: pub.checked, hours })); tr.public = pub.checked; toast(t('tripSaved')); }
+      catch (e) { pub.checked = !pub.checked; toast(t('syncError')); }
+    };
+    on('#ta-copy', async () => {
+      if (!Auth.current()) return openJoinSheet('trip', first);
+      try {
+        const nid = await Store.saveTrip({ title: tr.title.slice(0, 60), stops: seq.map((s) => ({ r: s.r.id })), hours, manual: false, public: false });
+        toast(t('tripCopied')); go('trip-' + nid);
+      } catch (e) { toast(t('syncError')); }
+    });
+    on('#ta-link', () => {
+      if (navigator.share) navigator.share({ title: 'TOUGE · ' + tr.title, text: t('shareRoadText'), url: link }).catch(() => {});
+      else copyLink(link);
+    });
+    on('#ta-del', async (e) => {
+      const b = e.currentTarget;
+      if (!b.classList.contains('armed')) { b.classList.add('armed'); b.textContent = t('confirmReport'); setTimeout(() => { b.classList.remove('armed'); b.textContent = t('deleteTrip'); }, 4000); return; }
+      try { await Store.deleteTrip(tr.id); garageTab = 'trip'; go('garage'); } catch (err) { toast(t('syncError')); }
+    });
+    on('#ta-flag', async (e) => {
+      if (!Auth.current()) return openJoinSheet('flag', first);
+      const b = e.currentTarget;
+      if (!b.classList.contains('armed')) { b.classList.add('armed'); b.textContent = t('confirmReport'); setTimeout(() => { b.classList.remove('armed'); b.textContent = t('reportTrip'); }, 4000); return; }
+      try { await Store.reportTrip(tr.id); toast(t('reported')); go('explore'); } catch (err) { toast(t('syncError')); }
+    });
+  }
+
+  // editor: nome, passi (ordine automatico finché non li sposti a mano), pubblico/privato
+  function viewTripEdit(id, user) {
+    if (!user) { go('explore'); setTimeout(() => openJoinSheet('trip'), 400); return; }
+    if (id) {
+      if (!draft || draft.id !== id) {
+        const tr = Store.myTrips().find((x) => x.id === id);
+        if (!tr) return go('garage');
+        draft = JSON.parse(JSON.stringify(tr));
+      }
+    } else if (!draft || draft.id) draft = { title: '', stops: [], hours: 5, manual: false, public: false };
+    app.innerHTML = `
+      <header class="top te-top"><button class="round-btn" id="te-back" aria-label="back">${icon('back')}</button><h1 class="h1">${t(id ? 'editTrip' : 'newTrip')}</h1></header>
+      <div class="pad te">
+        <div class="field"><div class="field-top"><label for="te-title">${t('tripTitle')}</label></div>
+          <input id="te-title" type="text" maxlength="60" placeholder="${t('tripTitlePh')}" value="${esc(draft.title)}" /></div>
+        <h2 class="h2">${t('tripStops')} <span class="muted small" id="te-n"></span></h2>
+        <ol class="te-stops" id="te-stops"></ol>
+        <button class="btn ghost te-add" id="te-add">${icon('plus')} ${t('addPass')}</button>
+        <p class="muted small te-hint">${t('autoOrderHint')} <button class="link" id="te-auto">${t('autoOrder')}</button></p>
+        <label class="te-pub"><input type="checkbox" id="te-pub" ${draft.public ? 'checked' : ''} /><span>${t('tripPublic')}</span></label>
+        <button class="btn primary" id="te-save">${t('saveTrip')}</button>
+        ${id ? `<button class="link danger te-del" id="te-del">${t('deleteTrip')}</button>` : ''}
+      </div>`;
+    const renderStops = () => {
+      const n = draft.stops.length;
+      $('#te-n').textContent = n ? `· ${n}` : '';
+      $('#te-stops').innerHTML = n ? draft.stops.map((s, i) => {
+        const r = byId[s.r];
+        if (!r) return '';
+        return `<li class="te-stop"><span class="te-no">${i + 1}</span>
+          <div class="te-info"><b>${esc(r.name)}</b><small>${flag(r.country)} ${esc(r.region)} · ${fmt(r.alt)} m</small></div>
+          <div class="te-btns"><button data-up="${i}" ${i === 0 ? 'disabled' : ''} aria-label="su">▲</button><button data-down="${i}" ${i === n - 1 ? 'disabled' : ''} aria-label="giù">▼</button><button data-x="${i}" aria-label="${t('close')}">✕</button></div></li>`;
+      }).join('') : `<p class="empty">${t('tripMin')}</p>`;
+      const move = (i, d) => { const a = draft.stops; [a[i], a[i + d]] = [a[i + d], a[i]]; draft.manual = true; renderStops(); };
+      $$('[data-up]').forEach((b) => (b.onclick = () => move(+b.dataset.up, -1)));
+      $$('[data-down]').forEach((b) => (b.onclick = () => move(+b.dataset.down, 1)));
+      $$('[data-x]').forEach((b) => (b.onclick = () => { draft.stops.splice(+b.dataset.x, 1); renderStops(); }));
+    };
+    renderStops();
+    $('#te-title').oninput = (e) => (draft.title = e.target.value);
+    $('#te-pub').onchange = (e) => (draft.public = e.target.checked);
+    $('#te-back').onclick = () => (history.length > 1 ? history.back() : go('garage'));
+    $('#te-auto').onclick = () => { draft.stops = autoOrder(draft.stops); draft.manual = false; renderStops(); };
+    $('#te-add').onclick = () => openPassPicker(() => { if (!draft.manual) draft.stops = autoOrder(draft.stops); renderStops(); });
+    $('#te-save').onclick = async (e) => {
+      const b = e.currentTarget;
+      draft.title = $('#te-title').value.trim();
+      if (!draft.title) { toast(t('errTripTitle')); return $('#te-title').focus(); }
+      if (draft.stops.length < 2) return toast(t('tripMin'));
+      b.classList.add('loading');
+      try { const nid = await Store.saveTrip(draft); draft = null; toast(t('tripSaved')); go('trip-' + nid); }
+      catch (err) { b.classList.remove('loading'); toast(t(err.message === 'errRateLimit' ? 'errRateLimit' : 'syncError')); }
+    };
+    const del = $('#te-del');
+    if (del) del.onclick = async () => {
+      if (!del.classList.contains('armed')) { del.classList.add('armed'); del.textContent = t('confirmReport'); setTimeout(() => { del.classList.remove('armed'); del.textContent = t('deleteTrip'); }, 4000); return; }
+      try { await Store.deleteTrip(id); draft = null; garageTab = 'trip'; go('garage'); } catch (err) { toast(t('syncError')); }
+    };
+  }
+
+  // scelta dei passi: ricerca, e senza ricerca prima quelli vicini all'ultimo passo
+  function openPassPicker(onChange) {
+    const sh = openSheet(`
+      <div class="sheet-head"><h2 class="h2">${icon('plus')} ${t('addPass')}</h2><button class="link" data-close>OK</button></div>
+      <label class="search org-q">${icon('search')}<input id="pp-q" type="search" placeholder="${t('searchPass')}" autocomplete="off" /></label>
+      <p class="pp-h" id="pp-h"></p>
+      <div class="pp-list" id="pp-list"></div>`);
+    sh.classList.add('pp-sheet');
+    const paint = () => {
+      const q = norm($('#pp-q', sh).value.trim()), inTrip = new Set(draft.stops.map((s) => s.r));
+      const lastR = draft.stops.length ? byId[draft.stops[draft.stops.length - 1].r] : null;
+      const dist = (r) => (lastR ? TougeTrip.hav(summit(lastR), summit(r)) : 0);
+      let list = ROADS.filter((r) => !q || norm(r.name + ' ' + r.region).includes(q));
+      list = lastR && !q ? list.sort((a, b) => dist(a) - dist(b)) : list.sort((a, b) => a.name.localeCompare(b.name));
+      $('#pp-h', sh).textContent = lastR && !q ? t('nearLast') : '';
+      $('#pp-list', sh).innerHTML = list.slice(0, 40).map((r) => `
+        <button class="pp-item ${inTrip.has(r.id) ? 'on' : ''}" data-r="${r.id}">${flag(r.country)}
+          <div><b>${esc(r.name)}</b><small>${esc(r.region)} · ${fmt(r.alt)} m${lastR && !q && r.id !== lastR.id ? ` · ${Math.round(dist(r))} km` : ''}</small></div>${icon(inTrip.has(r.id) ? 'check' : 'plus', 'pp-ic')}</button>`).join('');
+      $$('[data-r]', sh).forEach((b) => (b.onclick = () => {
+        const i = draft.stops.findIndex((s) => s.r === b.dataset.r);
+        if (i >= 0) draft.stops.splice(i, 1);
+        else if (draft.stops.length >= TougeTrip.MAX) return toast(t('tripMax'));
+        else { draft.stops.push({ r: b.dataset.r }); toast('+ ' + byId[b.dataset.r].name); }
+        onChange(); paint();
+      }));
+    };
+    $('#pp-q', sh).oninput = paint;
+    paint();
+  }
+
+  // ───────────── PARTIAMO! ─────────────
+  // Chiede ogni volta da che lato entrare (suggerendo il più vicino) e apre Google Maps:
+  // partenza dalla posizione attuale (Google la usa da sé), poi ingresso → vetta → uscita.
+  function bearing(a, b) {
+    const rad = Math.PI / 180, y = Math.sin((b[1] - a[1]) * rad) * Math.cos(b[0] * rad);
+    const x = Math.cos(a[0] * rad) * Math.sin(b[0] * rad) - Math.sin(a[0] * rad) * Math.cos(b[0] * rad) * Math.cos((b[1] - a[1]) * rad);
+    return (Math.atan2(y, x) / rad + 360) % 360;
+  }
+  const compass = (deg) => t('dirs')[Math.round(deg / 45) % 8];
+  // tempo di guida stimato da una distanza in linea d'aria (strade reali ≈ +30%, più veloci sulle lunghe distanze)
+  function estDrive(km) {
+    const road = km * 1.3, v = road < 30 ? 40 : road < 100 ? 60 : 80;
+    return Math.max(5, Math.round((road / v) * 60 / 5) * 5);
+  }
+  const fmtDur = (min) => (min < 60 ? `${min} min` : `${Math.floor(min / 60)}h${min % 60 ? String(min % 60).padStart(2, '0') : ''}`);
+  const gmapsRoute = (pts) => {
+    const dest = pts[pts.length - 1], via = pts.slice(0, -1);
+    return `https://www.google.com/maps/dir/?api=1&destination=${dest.join(',')}&waypoints=${via.map((p) => p.join(',')).join('%7C')}&travelmode=driving`;
+  };
+
+  function openGoSheet(r) {
+    const a = r.wp[0], b = r.wp[r.wp.length - 1];
+    const mid = [(a[0] + b[0]) / 2, (a[1] + b[1]) / 2];
+    const sides = [
+      { entry: a, exit: b, pts: r.wp.slice() },
+      { entry: b, exit: a, pts: r.wp.slice().reverse() },
+    ].map((x) => Object.assign(x, { from: compass(bearing(mid, x.entry)), to: compass(bearing(mid, x.exit)) }));
+    const other = (p) => `<a href="https://waze.com/ul?ll=${p.join(',')}&navigate=yes" target="_blank" rel="noopener" class="link">Waze</a> · <a href="https://maps.apple.com/?daddr=${p.join(',')}&dirflg=d" target="_blank" rel="noopener" class="link">Apple Mappe</a>`;
+    const sh = openSheet(`
+      <div class="sheet-head"><h2 class="h2">${icon('go')} ${t('goTitle')}</h2><button class="link" data-close>${t('close')}</button></div>
+      <p class="go-hint">${t('goHint')}</p>
+      <div class="go-opts">${sides.map((x, i) => `
+        <a class="go-opt" data-side="${i}" href="${gmapsRoute(x.pts)}" target="_blank" rel="noopener">
+          <span class="go-badge" hidden>${t('goNearest')}</span>
+          <span class="go-dir">${t('goFrom')} ${x.from}</span>
+          <span class="go-path">${t('goPath').replace('{dir}', x.to).replace('{km}', r.km)}</span>
+          <span class="go-eta" data-eta="${i}">${t('goLocating')}</span>
+        </a>`).join('')}
+      </div>
+      <p class="go-other">${t('goOther')}<br><span id="go-other">${other(sides[0].entry)}</span></p>`);
+    sh.classList.add('go-sheet');
+    $$('.go-opt', sh).forEach((el) => (el.onclick = () => setTimeout(() => sh.remove(), 300)));
+    const noLoc = () => $$('[data-eta]', sh).forEach((el) => (el.textContent = t('goNoLoc')));
+    if (!navigator.geolocation) return noLoc();
+    navigator.geolocation.getCurrentPosition((p) => {
+      const me = [p.coords.latitude, p.coords.longitude];
+      const km = sides.map((x) => haversine(me, x.entry));
+      const near = km[0] <= km[1] ? 0 : 1;
+      sides.forEach((x, i) => {
+        const el = $(`[data-eta="${i}"]`, sh);
+        if (el) el.textContent = t('goEta').replace('{t}', fmtDur(estDrive(km[i]))).replace('{km}', fmt(Math.round(km[i] * 1.3)));
+      });
+      const best = $(`.go-opt[data-side="${near}"]`, sh);
+      if (best) { best.classList.add('near'); $('.go-badge', best).hidden = false; $('.go-opts', sh).prepend(best); }
+      const o = $('#go-other', sh); if (o) o.innerHTML = other(sides[near].entry);
+    }, noLoc, { enableHighAccuracy: false, timeout: 8000, maximumAge: 300000 });
   }
 
   // ───────────── CONDIVISIONE ─────────────
@@ -1096,12 +2031,17 @@
     let saved = {};
     try { saved = JSON.parse(localStorage.getItem(PC_KEY)) || {}; } catch (e) { /* niente preferenze */ }
     let style = TS.STYLES.includes(saved.style) ? saved.style : 'vapor';
-    const els = { stamp: true, postmark: true, greet: true, plate: true };
+    const els = { stamp: true, postmark: true, greet: true, plate: true, car: true };
     if (saved.els) TS.ELEMENTS.forEach((k) => { if (typeof saved.els[k] === 'boolean') els[k] = saved.els[k]; });
     const info = {
-      drivenAt: Store.driven()[r.id], plateLabel: Store.isDriven(r.id) ? t('driven') : t('markDriven'), hairpinsLabel: t('hairpins'),
+      drivenAt: Store.driven()[r.id], plateLabel: Store.isDriven(r.id) ? t(Store.isVerified(r.id) ? 'verified' : 'driven') : t('markDriven'), hairpinsLabel: t('hairpins'),
       region: r.region, country: cname(r.country), tagline: t('tagline'), greet: t('pcGreet'),
     };
+    // la foto dell'auto entra nella cartolina come data URL (serve anche per PNG e SVG scaricati)
+    const me = Auth.current();
+    const carUrl = me && me.carPhoto ? Store.photoUrl(me.carPhoto) : '';
+    const elList = TS.ELEMENTS.filter((k) => k !== 'car' || carUrl);
+    info.carName = (me && me.car) || t('yourCar');
 
     const wrap = document.createElement('div');
     wrap.className = 'sheet-wrap story-sheet';
@@ -1115,7 +2055,7 @@
           <button class="pc-arrow" data-step="1" aria-label="${t('pcNext')}">›</button>
         </div>
         <div class="pc-preview" id="pc-prev"><span class="kicker">${t('preparing')}</span></div>
-        <div class="pc-els">${TS.ELEMENTS.map((k) => `<button class="chip pc-el" data-el="${k}">${t('pcEl_' + k)}</button>`).join('')}</div>
+        <div class="pc-els">${elList.map((k) => `<button class="chip pc-el" data-el="${k}">${t('pcEl_' + k)}</button>`).join('')}</div>
         <div class="pc-actions" id="pc-actions">
           <button class="btn pc-ig" id="pc-ig">${icon('story')} Instagram</button>
           <button class="btn pc-save" id="pc-save" aria-label="${t('saveImage')}">${t('pcSave')} <span aria-hidden="true">▾</span></button>
@@ -1131,7 +2071,7 @@
 
     const prev = $('#pc-prev', wrap), actions = $('#pc-actions', wrap), igBtn = $('#pc-ig', wrap);
     let story = null; // { key, promise, blob }
-    const key = () => style + JSON.stringify(els);
+    const key = () => style + JSON.stringify(els) + (info.carPhoto ? 'c' : '');
     const prepareStory = () => {
       const k = key();
       if (story && story.key === k) return story;
@@ -1195,6 +2135,12 @@
     }));
 
     try { await TS.ready(); draw(); } catch (e) { prev.innerHTML = `<p class="empty">${t('storyError')}</p>`; }
+    if (carUrl) {
+      try {
+        info.carPhoto = carUrl.startsWith('data:') ? carUrl : await TougePhoto.toDataURL(await fetch(carUrl).then((x) => x.blob()));
+        if (document.body.contains(wrap)) draw();
+      } catch (e) { /* senza auto */ }
+    }
   }
 
   // ───────────── GARAGE ─────────────
@@ -1223,9 +2169,17 @@
       <div class="seg">
         <button class="${garageTab === 'fav' ? 'on' : ''}" data-t="fav">${icon('heart')} ${t('favorites')} (${Store.favorites().filter((id) => byId[id]).length})</button>
         <button class="${garageTab === 'drv' ? 'on' : ''}" data-t="drv">${icon('flag')} ${t('drivenList')} (${drivenIds.length})</button>
+        <button class="${garageTab === 'trip' ? 'on' : ''}" data-t="trip">${icon('route')} ${t('tripsTab')} (${Store.myTrips().length})</button>
       </div>
       <div class="grid" id="glist"></div>`;
     const render = () => {
+      if (garageTab === 'trip') {
+        const mine = Store.myTrips();
+        $('#glist').innerHTML = newTripCard() + (mine.length ? mine.map(tripCard).join('') : `<p class="empty">${t('emptyTrips')}</p>`);
+        $('#glist').classList.add('trip-grid');
+        return bindTripCards($('#glist'));
+      }
+      $('#glist').classList.remove('trip-grid');
       const ids = garageTab === 'fav' ? Store.favorites() : drivenIds;
       const list = ids.map((id) => byId[id]).filter(Boolean);
       $('#glist').innerHTML = list.length ? list.map(roadCard).join('') : `<p class="empty">${garageTab === 'fav' ? t('emptyFav') : t('emptyDriven')}</p>`;
@@ -1260,10 +2214,20 @@
       <section class="license">
         <div class="license-band"><span>${t('license')}</span><span>走り屋</span></div>
         <div class="license-body">
-          ${avatar(user, 78)}
+          <button class="lic-photo" id="p-photo" aria-label="${t('profilePhoto')}">${avatar(user, 78)}<span class="cam">${icon('camera')}</span></button>
           <div><h1 class="h1">${esc(user.name)}</h1><p>${t('car').toUpperCase()}: ${esc(user.car || '—')}</p><p>${t('memberSince').toUpperCase()}: ${since}</p></div>
         </div>
         <div class="livery"></div>
+      </section>
+      ${user.photo ? `<p class="pad-x lic-rm"><button class="link" id="p-photo-rm">${t('removePhoto')}</button></p>` : ''}
+
+      <h2 class="h2 pad-x">${t('yourCar')}</h2>
+      <section class="car-card">
+        ${user.carPhoto
+          ? `<button class="car-img" id="p-car" aria-label="${t('changeCarPhoto')}"><img src="${esc(Store.photoUrl(user.carPhoto))}" alt="${esc(user.car || t('yourCar'))}" /></button>`
+          : `<button class="car-empty" id="p-car">${icon('camera')}<span>${t('addCarPhoto')}</span></button>`}
+        <div class="car-info"><b>${esc(user.car || t('carNoName'))}</b>
+          ${user.carPhoto ? `<span><button class="link" id="p-car2">${t('changeCarPhoto')}</button> · <button class="link" id="p-car-rm">${t('removePhoto')}</button></span>` : ''}</div>
       </section>
 
       <h2 class="h2 pad-x">${t('stats')}</h2>
@@ -1276,6 +2240,9 @@
 
       <h2 class="h2 pad-x">${t('badges')}</h2>
       <div class="badges">${badges.map(([k, e, ok]) => `<div class="bdg ${ok ? 'ok' : ''}"><span class="e">${e}</span><b>${t(k)}</b><small>${t(k + '_d')}</small></div>`).join('')}</div>
+
+      <h2 class="h2 pad-x">${t('notifications')}</h2>
+      <section class="notif" id="notif"></section>
 
       <h2 class="h2 pad-x">${t('settings')}</h2>
       <div class="menu">
@@ -1294,9 +2261,14 @@
       <p class="disclaimer pad-x">TOUGE App v1.0 · ${t('disclaimer')}</p>`;
 
     bindLangSwitch();
+    renderNotif($('#notif'));
     const ef = $('#edit-form');
     ef.name.value = user.name; ef.car.value = user.car || '';
     $('#m-edit').onclick = () => (ef.hidden = !ef.hidden);
+    $('#p-photo').onclick = () => pickImage().then((f) => saveProfilePhoto('photo', f));
+    $$('#p-car, #p-car2').forEach((b) => (b.onclick = () => pickImage().then((f) => saveProfilePhoto('carPhoto', f))));
+    const rmP = $('#p-photo-rm'); if (rmP) rmP.onclick = () => saveProfilePhoto('photo', null);
+    const rmC = $('#p-car-rm'); if (rmC) rmC.onclick = () => saveProfilePhoto('carPhoto', null);
     ef.onsubmit = async (e) => {
       e.preventDefault();
       if (!ef.name.value.trim()) return toast(t('errName'));

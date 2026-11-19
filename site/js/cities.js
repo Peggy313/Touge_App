@@ -1,0 +1,80 @@
+/* TOUGE App — città di partenza per "Parto da…" (coordinate approssimate del centro).
+ * [nome IT, lat, lng, paese, nomi EN/locali separati da | (facoltativo)] — la ricerca usa tutti i nomi,
+ * in inglese si mostra il primo dopo il nome IT.
+ */
+window.CITIES = [
+  // Italia — Nord-Ovest
+  ['Torino', 45.070, 7.686, 'IT', 'Turin'], ['Milano', 45.464, 9.190, 'IT', 'Milan'], ['Genova', 44.407, 8.934, 'IT', 'Genoa'],
+  ['Aosta', 45.737, 7.315, 'IT'], ['Novara', 45.446, 8.622, 'IT'], ['Vercelli', 45.320, 8.419, 'IT'], ['Biella', 45.566, 8.054, 'IT'],
+  ['Asti', 44.900, 8.207, 'IT'], ['Alessandria', 44.913, 8.615, 'IT'], ['Cuneo', 44.384, 7.543, 'IT'], ['Verbania', 45.922, 8.552, 'IT'],
+  ['Imperia', 43.886, 8.027, 'IT'], ['Sanremo', 43.818, 7.776, 'IT'], ['Savona', 44.309, 8.477, 'IT'], ['La Spezia', 44.102, 9.824, 'IT'],
+  ['Varese', 45.820, 8.825, 'IT'], ['Como', 45.808, 9.085, 'IT'], ['Lecco', 45.856, 9.397, 'IT'], ['Sondrio', 46.170, 9.871, 'IT'],
+  ['Bergamo', 45.698, 9.677, 'IT'], ['Brescia', 45.541, 10.211, 'IT'], ['Monza', 45.584, 9.274, 'IT'], ['Lodi', 45.314, 9.503, 'IT'],
+  ['Pavia', 45.185, 9.159, 'IT'], ['Cremona', 45.133, 10.023, 'IT'], ['Mantova', 45.156, 10.791, 'IT', 'Mantua'],
+  ['Bormio', 46.467, 10.370, 'IT'], ['Livigno', 46.538, 10.136, 'IT'],
+  // Italia — Nord-Est
+  ['Trento', 46.067, 11.121, 'IT'], ['Bolzano', 46.498, 11.354, 'IT', 'Bolzano|Bozen'], ['Merano', 46.669, 11.163, 'IT', 'Merano|Meran'],
+  ['Bressanone', 46.715, 11.656, 'IT', 'Bressanone|Brixen'], ['Brunico', 46.796, 11.937, 'IT', 'Brunico|Bruneck'], ['Cortina d\'Ampezzo', 46.538, 12.137, 'IT'],
+  ['Riva del Garda', 45.885, 10.841, 'IT'], ['Belluno', 46.140, 12.217, 'IT'], ['Verona', 45.438, 10.992, 'IT'], ['Vicenza', 45.548, 11.546, 'IT'],
+  ['Padova', 45.406, 11.877, 'IT', 'Padua'], ['Venezia', 45.440, 12.316, 'IT', 'Venice'], ['Treviso', 45.667, 12.245, 'IT'],
+  ['Rovigo', 45.070, 11.790, 'IT'], ['Pordenone', 45.956, 12.660, 'IT'], ['Udine', 46.071, 13.235, 'IT'], ['Gorizia', 45.941, 13.622, 'IT'],
+  ['Trieste', 45.650, 13.777, 'IT'],
+  // Italia — Emilia-Romagna, Toscana
+  ['Bologna', 44.494, 11.343, 'IT'], ['Modena', 44.647, 10.925, 'IT'], ['Reggio Emilia', 44.698, 10.631, 'IT'], ['Parma', 44.801, 10.328, 'IT'],
+  ['Piacenza', 45.052, 9.693, 'IT'], ['Ferrara', 44.838, 11.620, 'IT'], ['Ravenna', 44.418, 12.204, 'IT'], ['Imola', 44.353, 11.714, 'IT'],
+  ['Forlì', 44.222, 12.041, 'IT'], ['Cesena', 44.139, 12.243, 'IT'], ['Rimini', 44.060, 12.566, 'IT'],
+  ['Firenze', 43.770, 11.255, 'IT', 'Florence'], ['Pisa', 43.716, 10.402, 'IT'], ['Lucca', 43.843, 10.505, 'IT'], ['Livorno', 43.548, 10.311, 'IT'],
+  ['Massa', 44.035, 10.140, 'IT'], ['Carrara', 44.079, 10.098, 'IT'], ['Viareggio', 43.867, 10.250, 'IT'], ['Pistoia', 43.933, 10.917, 'IT'],
+  ['Prato', 43.880, 11.097, 'IT'], ['Arezzo', 43.463, 11.880, 'IT'], ['Siena', 43.318, 11.331, 'IT'], ['Grosseto', 42.760, 11.113, 'IT'],
+  // Italia — Centro
+  ['Perugia', 43.111, 12.389, 'IT'], ['Terni', 42.563, 12.643, 'IT'], ['Ancona', 43.616, 13.519, 'IT'], ['Pesaro', 43.910, 12.913, 'IT'],
+  ['Urbino', 43.726, 12.636, 'IT'], ['Macerata', 43.300, 13.453, 'IT'], ['Fermo', 43.160, 13.716, 'IT'], ['Ascoli Piceno', 42.854, 13.575, 'IT'],
+  ['Roma', 41.903, 12.496, 'IT', 'Rome'], ['Viterbo', 42.418, 12.105, 'IT'], ['Rieti', 42.404, 12.857, 'IT'], ['Latina', 41.467, 12.904, 'IT'],
+  ['Frosinone', 41.640, 13.342, 'IT'], ['L\'Aquila', 42.350, 13.399, 'IT'], ['Teramo', 42.659, 13.704, 'IT'], ['Pescara', 42.462, 14.216, 'IT'],
+  ['Chieti', 42.351, 14.168, 'IT'], ['Campobasso', 41.561, 14.668, 'IT'], ['Isernia', 41.594, 14.233, 'IT'],
+  // Italia — Sud e isole
+  ['Napoli', 40.852, 14.268, 'IT', 'Naples'], ['Salerno', 40.683, 14.768, 'IT'], ['Caserta', 41.073, 14.333, 'IT'], ['Benevento', 41.130, 14.782, 'IT'],
+  ['Avellino', 40.914, 14.790, 'IT'], ['Sorrento', 40.626, 14.376, 'IT'], ['Amalfi', 40.634, 14.603, 'IT'],
+  ['Bari', 41.117, 16.872, 'IT'], ['Foggia', 41.462, 15.545, 'IT'], ['Barletta', 41.320, 16.282, 'IT'], ['Lecce', 40.353, 18.174, 'IT'],
+  ['Taranto', 40.464, 17.247, 'IT'], ['Brindisi', 40.632, 17.936, 'IT'], ['Potenza', 40.640, 15.806, 'IT'], ['Matera', 40.666, 16.604, 'IT'],
+  ['Cosenza', 39.298, 16.254, 'IT'], ['Catanzaro', 38.906, 16.594, 'IT'], ['Crotone', 39.081, 17.127, 'IT'], ['Vibo Valentia', 38.676, 16.101, 'IT'],
+  ['Reggio Calabria', 38.111, 15.647, 'IT'], ['Palermo', 38.116, 13.361, 'IT'], ['Catania', 37.502, 15.087, 'IT'], ['Messina', 38.193, 15.554, 'IT'],
+  ['Siracusa', 37.075, 15.287, 'IT', 'Syracuse'], ['Ragusa', 36.925, 14.731, 'IT'], ['Agrigento', 37.311, 13.577, 'IT'], ['Trapani', 38.018, 12.514, 'IT'],
+  ['Caltanissetta', 37.490, 14.062, 'IT'], ['Enna', 37.567, 14.279, 'IT'], ['Taormina', 37.852, 15.288, 'IT'],
+  ['Cagliari', 39.224, 9.122, 'IT'], ['Sassari', 40.726, 8.561, 'IT'], ['Olbia', 40.923, 9.498, 'IT'], ['Nuoro', 40.321, 9.331, 'IT'], ['Oristano', 39.903, 8.592, 'IT'],
+  // Svizzera
+  ['Zurigo', 47.377, 8.540, 'CH', 'Zurich|Zürich'], ['Ginevra', 46.204, 6.143, 'CH', 'Geneva|Genève'], ['Basilea', 47.560, 7.589, 'CH', 'Basel'],
+  ['Berna', 46.948, 7.447, 'CH', 'Bern'], ['Losanna', 46.520, 6.633, 'CH', 'Lausanne'], ['Lucerna', 47.050, 8.309, 'CH', 'Lucerne|Luzern'],
+  ['Lugano', 46.004, 8.951, 'CH'], ['Locarno', 46.170, 8.795, 'CH'], ['Bellinzona', 46.195, 9.023, 'CH'], ['Coira', 46.850, 9.531, 'CH', 'Chur'],
+  ['St. Moritz', 46.498, 9.839, 'CH'], ['Davos', 46.802, 9.836, 'CH'], ['Sion', 46.233, 7.360, 'CH', 'Sion|Sitten'], ['Martigny', 46.100, 7.072, 'CH'],
+  ['Briga', 46.316, 7.988, 'CH', 'Brig'], ['Zermatt', 46.020, 7.749, 'CH'], ['Interlaken', 46.686, 7.863, 'CH'], ['Andermatt', 46.636, 8.594, 'CH'],
+  ['San Gallo', 47.424, 9.377, 'CH', 'St. Gallen'], ['Winterthur', 47.500, 8.724, 'CH'], ['Thun', 46.758, 7.628, 'CH'],
+  ['Neuchâtel', 46.990, 6.931, 'CH'], ['Montreux', 46.431, 6.911, 'CH'], ['Vaduz', 47.141, 9.521, 'LI'],
+  // Francia
+  ['Nizza', 43.710, 7.262, 'FR', 'Nice'], ['Mentone', 43.776, 7.504, 'FR', 'Menton'], ['Monaco (Principato)', 43.738, 7.424, 'MC', 'Monaco'],
+  ['Cannes', 43.552, 7.017, 'FR'], ['Marsiglia', 43.296, 5.370, 'FR', 'Marseille'], ['Tolone', 43.124, 5.928, 'FR', 'Toulon'],
+  ['Aix-en-Provence', 43.530, 5.447, 'FR'], ['Avignone', 43.949, 4.806, 'FR', 'Avignon'], ['Nîmes', 43.837, 4.360, 'FR'],
+  ['Montpellier', 43.611, 3.877, 'FR'], ['Grenoble', 45.188, 5.724, 'FR'], ['Lione', 45.764, 4.836, 'FR', 'Lyon'],
+  ['Chambéry', 45.564, 5.918, 'FR'], ['Annecy', 45.900, 6.129, 'FR'], ['Chamonix', 45.924, 6.870, 'FR'], ['Albertville', 45.676, 6.392, 'FR'],
+  ['Briançon', 44.897, 6.636, 'FR'], ['Gap', 44.559, 6.079, 'FR'], ['Digne-les-Bains', 44.093, 6.236, 'FR'], ['Barcelonnette', 44.387, 6.652, 'FR'],
+  ['Valence', 44.933, 4.892, 'FR'], ['Saint-Étienne', 45.440, 4.387, 'FR'], ['Clermont-Ferrand', 45.778, 3.087, 'FR'],
+  ['Digione', 47.322, 5.041, 'FR', 'Dijon'], ['Besançon', 47.238, 6.024, 'FR'], ['Strasburgo', 48.573, 7.752, 'FR', 'Strasbourg'],
+  ['Mulhouse', 47.750, 7.336, 'FR'], ['Tolosa', 43.605, 1.444, 'FR', 'Toulouse'], ['Parigi', 48.857, 2.352, 'FR', 'Paris'],
+  ['Ajaccio', 41.919, 8.738, 'FR'], ['Bastia', 42.697, 9.450, 'FR'],
+  // Austria
+  ['Vienna', 48.208, 16.373, 'AT', 'Vienna|Wien'], ['Innsbruck', 47.269, 11.404, 'AT'], ['Salisburgo', 47.809, 13.055, 'AT', 'Salzburg'],
+  ['Graz', 47.071, 15.439, 'AT'], ['Linz', 48.306, 14.286, 'AT'], ['Klagenfurt', 46.624, 14.308, 'AT'], ['Villaco', 46.611, 13.855, 'AT', 'Villach'],
+  ['Lienz', 46.829, 12.769, 'AT'], ['Bregenz', 47.503, 9.747, 'AT'], ['Feldkirch', 47.238, 9.598, 'AT'], ['Bludenz', 47.155, 9.822, 'AT'],
+  ['Landeck', 47.140, 10.567, 'AT'], ['Sölden', 46.966, 11.007, 'AT'], ['Kitzbühel', 47.446, 12.392, 'AT'], ['Zell am See', 47.324, 12.796, 'AT'],
+  ['Spittal an der Drau', 46.796, 13.495, 'AT'],
+  // Slovenia, Croazia
+  ['Lubiana', 46.056, 14.506, 'SI', 'Ljubljana'], ['Maribor', 46.554, 15.646, 'SI'], ['Kranj', 46.239, 14.355, 'SI'], ['Bled', 46.369, 14.114, 'SI'],
+  ['Kranjska Gora', 46.485, 13.786, 'SI'], ['Bovec', 46.338, 13.552, 'SI', 'Bovec|Plezzo'], ['Nova Gorica', 45.956, 13.648, 'SI'],
+  ['Capodistria', 45.548, 13.730, 'SI', 'Koper'], ['Celje', 46.236, 15.268, 'SI'],
+  ['Fiume', 45.327, 14.442, 'HR', 'Rijeka'], ['Pola', 44.867, 13.850, 'HR', 'Pula'], ['Zagabria', 45.815, 15.982, 'HR', 'Zagreb'],
+  // Germania
+  ['Monaco di Baviera', 48.137, 11.576, 'DE', 'Munich|München'], ['Garmisch-Partenkirchen', 47.492, 11.096, 'DE'],
+  ['Stoccarda', 48.776, 9.183, 'DE', 'Stuttgart'], ['Friburgo', 47.999, 7.842, 'DE', 'Freiburg'], ['Lindau', 47.546, 9.684, 'DE'],
+  ['Kempten', 47.728, 10.315, 'DE'], ['Augusta', 48.371, 10.898, 'DE', 'Augsburg'], ['Norimberga', 49.452, 11.077, 'DE', 'Nuremberg|Nürnberg'],
+  ['Francoforte', 50.110, 8.682, 'DE', 'Frankfurt'],
+];

@@ -1,0 +1,50 @@
+<!doctype html>
+<html lang="it">
+<head>
+<meta charset="utf-8" />
+<meta name="viewport" content="width=device-width, initial-scale=1" />
+<title>TOUGE · chiavi notifiche</title>
+<style>
+  :root { --ink: #141414; --paper: #f3ead8; --yellow: #ffcc00; --red: #e2231a; }
+  body { margin: 0; background: #0f0f11; color: var(--paper); font: 16px/1.5 system-ui, -apple-system, Segoe UI, sans-serif; }
+  main { max-width: 720px; margin: 0 auto; padding: 24px 16px 48px; }
+  h1 { font-size: 28px; margin: 0 0 6px; letter-spacing: .02em; }
+  p { margin: 8px 0; }
+  .warn { background: #2a1414; border-left: 6px solid var(--red); padding: 10px 14px; }
+  button.go { margin: 18px 0; padding: 14px 22px; font-size: 18px; font-weight: 700; background: var(--yellow); color: var(--ink); border: 2px solid var(--ink); box-shadow: 4px 4px 0 var(--red); cursor: pointer; }
+  .k { background: var(--paper); color: var(--ink); padding: 12px 14px; margin: 14px 0; border: 2px solid var(--ink); box-shadow: 4px 4px 0 #000; }
+  .k b { display: block; font-size: 15px; letter-spacing: .04em; }
+  .k small { display: block; color: #5c5547; margin: 2px 0 8px; font-size: 14px; }
+  .k code { display: block; word-break: break-all; font: 14px/1.4 ui-monospace, Consolas, monospace; background: #fffaf0; border: 1px solid #c9bfa8; padding: 8px; }
+  .k button { margin-top: 8px; padding: 6px 12px; font-weight: 700; border: 2px solid var(--ink); background: var(--yellow); cursor: pointer; }
+  .k.secret { box-shadow: 4px 4px 0 var(--red); }
+</style>
+</head>
+<body>
+<main>
+  <h1>TOUGE · chiavi per le notifiche</h1>
+  <p>Questa pagina crea le chiavi <b>sul tuo computer</b> (non le manda da nessuna parte). Generale <b>una volta sola</b>, poi segui <b>NOTIFICHE-SETUP.md</b>.</p>
+  <p class="warn">Le due chiavi segnate in rosso sono <b>segrete</b>: vanno solo nei "Secrets" di Supabase. Non mandarle a nessuno, nemmeno a Claude. Solo la chiave pubblica può andare nell'app.</p>
+  <button class="go" id="go">Genera le chiavi</button>
+  <div id="out"></div>
+</main>
+<script>
+  const b64u = (buf) => btoa(String.fromCharCode(...new Uint8Array(buf))).replace(/\+/g, '-').replace(/\//g, '_').replace(/=+$/, '');
+  const box = (name, value, note, secret) => `<div class="k ${secret ? 'secret' : ''}"><b>${name}</b><small>${note}</small><code>${value}</code><button data-v="${value}">Copia</button></div>`;
+  document.getElementById('go').onclick = async () => {
+    if (!crypto.subtle) { document.getElementById('out').innerHTML = '<p class="warn">Questo browser non può generare le chiavi qui. Apri il file con Chrome o Edge.</p>'; return; }
+    const kp = await crypto.subtle.generateKey({ name: 'ECDSA', namedCurve: 'P-256' }, true, ['sign', 'verify']);
+    const pub = b64u(await crypto.subtle.exportKey('raw', kp.publicKey));
+    const priv = (await crypto.subtle.exportKey('jwk', kp.privateKey)).d;
+    const cron = b64u(crypto.getRandomValues(new Uint8Array(24)));
+    document.getElementById('out').innerHTML =
+      box('VAPID_PUBLIC_KEY', pub, 'Pubblica. Va nei Secrets di Supabase E nell\'app (scrivila a Claude o incollala in js/config.js → vapidPublicKey).', false) +
+      box('VAPID_PRIVATE_KEY', priv, 'SEGRETA. Solo nei Secrets di Supabase.', true) +
+      box('CRON_SECRET', cron, 'SEGRETA. Nei Secrets di Supabase e nell\'intestazione x-touge-cron del Cron.', true) +
+      box('VAPID_SUBJECT', 'mailto:touge.app@gmail.com', 'Contatto del servizio. Va nei Secrets di Supabase.', false);
+    document.querySelectorAll('[data-v]').forEach((b) => (b.onclick = () => { navigator.clipboard.writeText(b.dataset.v); b.textContent = 'Copiata ✓'; }));
+    document.getElementById('go').hidden = true;
+  };
+</script>
+</body>
+</html>

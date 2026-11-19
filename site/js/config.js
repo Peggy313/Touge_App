@@ -13,4 +13,7 @@ window.TOUGE_CONFIG = {
   googleLogin: false,
   // email di contatto mostrata nell'informativa privacy (#privacy). Obbligatoria prima di aprire l'app al pubblico.
   contactEmail: 'touge.app@gmail.com',
+  // notifiche push: chiave PUBBLICA VAPID (la privata va SOLO nei segreti di Supabase, mai qui).
+  // Vuota = push non ancora attive: restano gli avvisi nella campanella. Vedi NOTIFICHE-SETUP.md.
+  vapidPublicKey: '',
 };

@@ -78,6 +78,10 @@
     return x && x.day === today() ? x.status : null;
   }
 
+  // preferenze notifiche (valori di partenza)
+  const NOTIFY_DEFAULT = { push: false, reopen: true, wxFav: true, wxNear: true, news: true, nearMin: 120 };
+  window.TOUGE_NOTIFY_DEFAULT = NOTIFY_DEFAULT;
+
   // Impostazioni comuni a entrambe le modalità
   const Common = {
     lang() { return read(K.lang, 'it'); },
@@ -92,6 +96,16 @@
   };
 
   // ═════════════════════════ MODALITÀ LOCALE ═════════════════════════
+  // Le foto restano nel telefono (localStorage, chiave touge.img.<id>): riferimento "local:<id>".
+  const IMG = 'touge.img.';
+  function saveImg(dataUrl) {
+    const id = randomHex(8);
+    try { localStorage.setItem(IMG + id, dataUrl); } catch (e) { throw new Error('errStorage'); }
+    return 'local:' + id;
+  }
+  const dropImg = (ref) => { if (ref && String(ref).startsWith('local:')) remove(IMG + ref.slice(6)); };
+  const localUrl = (ref) => (!ref ? '' : String(ref).startsWith('local:') ? (localStorage.getItem(IMG + ref.slice(6)) || '') : ref);
+
   function buildLocal() {
     const Auth = {
       cloud: false,
@@ -101,7 +115,7 @@
         const s = read(K.session, null);
         if (!s) return null;
         const u = read(K.users, {})[s.email];
-        return u ? { email: s.email, name: u.name, car: u.car, createdAt: u.createdAt, avatar: u.avatar } : null;
+        return u ? { email: s.email, name: u.name, car: u.car, createdAt: u.createdAt, avatar: u.avatar, photo: u.photo || '', carPhoto: u.carPhoto || '' } : null;
       },
       async register({ name, email, password, car }) {
         email = norm(email);
@@ -140,9 +154,14 @@
         const s = read(K.session, null);
         if (!s) return;
         const users = read(K.users, {});
+        if (users[s.email]) { dropImg(users[s.email].photo); dropImg(users[s.email].carPhoto); }
         delete users[s.email];
         write(K.users, users);
         remove(K.data(s.email));
+        const photos = read('touge.photos', {});
+        Object.keys(photos).forEach((rid) => (photos[rid] = photos[rid].filter((p) => (p.email === s.email ? (dropImg(p.img), false) : true))));
+        write('touge.photos', photos);
+        write('touge.trips', read('touge.trips', []).filter((x) => x.email !== s.email));
         const reviews = read(K.reviews, {});
         Object.keys(reviews).forEach((rid) => (reviews[rid] = reviews[rid].filter((r) => r.email !== s.email)));
         write(K.reviews, reviews);
@@ -182,7 +201,8 @@
       reviews(roadId) {
         const me = Auth.current();
         const hidden = read('touge.reported', []);
-        const local = (read(K.reviews, {})[roadId] || []).map((r) => Object.assign({ mine: !!me && r.email === me.email }, r));
+        const users = read(K.users, {});
+        const local = (read(K.reviews, {})[roadId] || []).map((r) => Object.assign({ mine: !!me && r.email === me.email, photo: localUrl((users[r.email] || {}).photo) }, r));
         const seed = (window.SEED_REVIEWS[roadId] || []).map((r, i) => Object.assign({ seed: true, id: 'seed-' + roadId + '-' + i }, r));
         return [...local, ...seed].filter((r) => !hidden.includes(r.id)).sort((a, b) => (b.date > a.date ? 1 : -1));
       },
@@ -226,6 +246,96 @@
         if (!rs.length) return null;
         return { avg: rs.reduce((s, r) => s + r.rating, 0) / rs.length, count: rs.length };
       },
+
+      // ── foto ──
+      photoUrl: localUrl,
+      async setProfilePhoto(kind, blob) {
+        const me = Auth.current();
+        if (!me) throw new Error('auth');
+        const ref = blob ? saveImg(await window.TougePhoto.toDataURL(blob)) : '';
+        dropImg(me[kind]);
+        await Auth.update({ [kind]: ref });
+      },
+      roadPhotos(roadId) {
+        const me = Auth.current(), users = read(K.users, {}), hidden = read('touge.reportedPhotos', []);
+        return (read('touge.photos', {})[roadId] || []).filter((p) => !hidden.includes(p.id)).map((p) => {
+          const u = users[p.email] || {};
+          return { id: p.id, url: localUrl(p.img), user: u.name || 'Pilota', car: u.car || '', userPhoto: localUrl(u.photo), avatar: u.avatar || 0,
+            verified: !!p.verified, date: p.date, mine: !!me && p.email === me.email };
+        });
+      },
+      loadRoadPhotos: async (roadId) => Store.roadPhotos(roadId),
+      myPhoto(roadId) {
+        const me = Auth.current();
+        return me ? (read('touge.photos', {})[roadId] || []).find((p) => p.email === me.email) || null : null;
+      },
+      isVerified(roadId) { const p = this.myPhoto(roadId); return !!(p && p.verified); },
+      async addRoadPhoto(roadId, blob, verifiedBy) {
+        const me = Auth.current();
+        if (!me) throw new Error('auth');
+        if (!this.isDriven(roadId)) throw new Error('errPhotoDriven');
+        const img = saveImg(await window.TougePhoto.toDataURL(blob));
+        await this.deleteRoadPhoto(roadId);
+        const all = read('touge.photos', {});
+        all[roadId] = [{ id: randomHex(6), email: me.email, img, verified: !!verifiedBy, by: verifiedBy || '', date: today() }, ...(all[roadId] || [])];
+        write('touge.photos', all);
+      },
+      async deleteRoadPhoto(roadId) {
+        const me = Auth.current();
+        if (!me) return;
+        const all = read('touge.photos', {});
+        all[roadId] = (all[roadId] || []).filter((p) => (p.email === me.email ? (dropImg(p.img), false) : true));
+        write('touge.photos', all);
+      },
+      async reportPhoto(roadId, photoId) {
+        const hidden = read('touge.reportedPhotos', []);
+        if (!hidden.includes(photoId)) { hidden.push(photoId); write('touge.reportedPhotos', hidden); }
+      },
+
+      // ── itinerari (sul dispositivo: quelli pubblici li vedono gli altri account dello stesso telefono) ──
+      _trip(x) {
+        const me = Auth.current(), u = read(K.users, {})[x.email] || {};
+        return { id: x.id, title: x.title, stops: x.stops, hours: x.hours || 5, manual: !!x.manual, public: !!x.public,
+          mine: !!me && x.email === me.email, user: u.name || 'Pilota', car: u.car || '', date: x.date };
+      },
+      myTrips() { const me = Auth.current(); return me ? read('touge.trips', []).filter((x) => x.email === me.email).map((x) => this._trip(x)) : []; },
+      publicTrips() {
+        const me = Auth.current(), hidden = read('touge.reportedTrips', []);
+        return read('touge.trips', []).filter((x) => x.public && !hidden.includes(x.id) && (!me || x.email !== me.email)).map((x) => this._trip(x));
+      },
+      loadPublicTrips: async () => Store.publicTrips(),
+      async getTrip(id) {
+        const me = Auth.current(), x = read('touge.trips', []).find((y) => y.id === id);
+        return x && (x.public || (me && x.email === me.email)) ? this._trip(x) : null;
+      },
+      async saveTrip(tr) {
+        const me = Auth.current();
+        if (!me) throw new Error('auth');
+        const all = read('touge.trips', []);
+        const row = { title: tr.title, stops: tr.stops.map((s) => ({ r: s.r })), hours: tr.hours || 5, manual: !!tr.manual, public: !!tr.public, date: today() };
+        const i = tr.id ? all.findIndex((x) => x.id === tr.id && x.email === me.email) : -1;
+        if (i >= 0) Object.assign(all[i], row); else all.unshift(Object.assign({ id: randomHex(6), email: me.email }, row));
+        write('touge.trips', all);
+        return i >= 0 ? tr.id : all[0].id;
+      },
+      async deleteTrip(id) { const me = Auth.current(); write('touge.trips', read('touge.trips', []).filter((x) => !(x.id === id && me && x.email === me.email))); },
+      async reportTrip(id) { const h = read('touge.reportedTrips', []); if (!h.includes(id)) { h.push(id); write('touge.reportedTrips', h); } },
+
+      // ── notifiche (qui solo avvisi in app: niente push senza Supabase) ──
+      notifyPrefs() { const me = Auth.current(); return Object.assign({}, NOTIFY_DEFAULT, me ? read('touge.notify', {})[me.email] : null); },
+      async setNotifyPrefs(p) {
+        const me = Auth.current(); if (!me) return;
+        const all = read('touge.notify', {}); all[me.email] = Object.assign({}, this.notifyPrefs(), p, { push: false }); write('touge.notify', all);
+      },
+      // nuove foto e recensioni di altri piloti su queste strade dopo "since"
+      async newsSince(roadIds, since) {
+        const me = Auth.current(), set = new Set(roadIds), out = [];
+        Object.entries(read('touge.photos', {})).forEach(([rid, list]) => set.has(rid) && list.forEach((p) => { if ((!me || p.email !== me.email) && p.date >= since.slice(0, 10)) out.push({ kind: 'photo', road: rid, at: p.date }); }));
+        Object.entries(read(K.reviews, {})).forEach(([rid, list]) => set.has(rid) && list.forEach((r) => { if ((!me || r.email !== me.email) && r.date >= since.slice(0, 10)) out.push({ kind: 'review', road: rid, at: r.date }); }));
+        return out;
+      },
+      async savePushSub() { throw new Error('unsupported'); },
+      async removePushSub() {},
     });
     return { Auth, Store };
   }
@@ -236,8 +346,27 @@
       auth: { persistSession: true, autoRefreshToken: true, detectSessionInUrl: true },
     });
     const siteUrl = location.origin + location.pathname;
-    const empty = () => ({ user: null, profile: null, favorites: [], driven: {}, myReviews: 0 });
+    const empty = () => ({ user: null, profile: null, favorites: [], driven: {}, myReviews: 0, photos: {}, trips: [], notify: null });
+    let publicTripsList = [];
+    let reportedTrips = new Set();
+    function mapTrip(x) {
+      return { id: x.id, title: x.title, stops: Array.isArray(x.stops) ? x.stops : [], hours: x.hours || 5, manual: !!x.manual, public: !!x.public,
+        hidden: !!x.hidden, mine: !!C.user && x.user_id === C.user.id, user: x.author_name || 'Pilota', car: x.author_car || '', date: (x.updated_at || '').slice(0, 10) };
+    }
     let C = empty();
+    const photosByRoad = {};      // road_id → [foto]
+    let reportedPhotos = new Set(); // foto che ho segnalato
+    const bucket = () => sb.storage.from('photos');
+    const photoUrl = (ref) => (!ref ? '' : /^(https?:|data:)/.test(ref) ? ref : bucket().getPublicUrl(ref).data.publicUrl);
+    function mapPhoto(p) {
+      return { id: p.id, url: photoUrl(p.path), user: p.author_name || 'Pilota', car: p.author_car || '', userPhoto: photoUrl(p.author_photo), avatar: 0,
+        verified: !!p.verified, date: (p.created_at || '').slice(0, 10), mine: !!C.user && p.user_id === C.user.id, path: p.path };
+    }
+    async function upload(path, blob) {
+      const { error } = await bucket().upload(path, blob, { contentType: 'image/jpeg', cacheControl: '31536000', upsert: false });
+      if (error) { fail('upload')(error); throw new Error('errPhotoUpload'); }
+    }
+    const dropFile = (path) => { if (path) bucket().remove([path]).catch(() => {}); };
     const reviewsByRoad = {};   // road_id → [recensioni]
     const ratings = {};         // road_id → { sum, count }
     const roadReports = {};     // road_id → [{ status, at }] ultimi 14 giorni
@@ -279,7 +408,7 @@
     function mapReview(r) {
       return {
         id: r.id, user: r.author_name || 'Pilota', car: r.author_car || '', rating: r.rating, text: r.text,
-        date: (r.created_at || '').slice(0, 10), mine: !!C.user && r.user_id === C.user.id,
+        date: (r.created_at || '').slice(0, 10), mine: !!C.user && r.user_id === C.user.id, photo: photoUrl(r.author_photo),
       };
     }
 
@@ -307,6 +436,19 @@
       C.myReviews = m.count || 0;
       sb.from('review_reports').select('review_id').eq('user_id', user.id)
         .then((res) => { if (res && !res.error) reported = new Set(res.data.map((x) => x.review_id)); }, () => {});
+      // le mie foto delle strade (per la placca VERIFICATO) e le foto che ho segnalato
+      await Promise.all([
+        sb.from('road_photos').select('id, road_id, path, verified').eq('user_id', user.id)
+          .then((res) => { if (res && !res.error) res.data.forEach((p) => (C.photos[p.road_id] = p)); }, () => {}),
+        sb.from('photo_reports').select('photo_id').eq('user_id', user.id)
+          .then((res) => { if (res && !res.error) reportedPhotos = new Set(res.data.map((x) => x.photo_id)); }, () => {}),
+        sb.from('trips').select('*').eq('user_id', user.id).order('updated_at', { ascending: false })
+          .then((res) => { if (res && !res.error) C.trips = res.data.map(mapTrip); }, () => {}),
+        sb.from('trip_reports').select('trip_id').eq('user_id', user.id)
+          .then((res) => { if (res && !res.error) reportedTrips = new Set(res.data.map((x) => x.trip_id)); }, () => {}),
+        sb.from('notify_prefs').select('*').eq('user_id', user.id).maybeSingle()
+          .then((res) => { if (res && !res.error && res.data) C.notify = res.data; }, () => {}),
+      ]);
 
       const legacy = read(K.data(norm(user.email)), null);
       if (legacy && !legacy.migrated && (Object.keys(legacy.driven || {}).length || (legacy.favorites || []).length)) {
@@ -334,7 +476,8 @@
       },
       current() {
         if (!C.user || !C.profile) return null;
-        return { id: C.user.id, email: C.user.email, name: C.profile.name, car: C.profile.car, avatar: C.profile.avatar, createdAt: C.profile.created_at || C.user.created_at };
+        return { id: C.user.id, email: C.user.email, name: C.profile.name, car: C.profile.car, avatar: C.profile.avatar, createdAt: C.profile.created_at || C.user.created_at,
+          photo: C.profile.photo || '', carPhoto: C.profile.car_photo || '' };
       },
       async register({ name, email, password, car }) {
         const avatar = Math.floor(Math.random() * 6);
@@ -369,8 +512,14 @@
         Object.assign(C.profile, fields);
         await run('profile', sb.from('profiles').update(fields).eq('id', C.user.id));
       },
-      async logout() { C = empty(); reported = new Set(); await sb.auth.signOut(); },
+      async logout() { C = empty(); reported = new Set(); reportedPhotos = new Set(); reportedTrips = new Set(); await sb.auth.signOut(); },
       async deleteAccount() {
+        // prima i file delle foto (non si cancellano da soli con l'account)
+        try {
+          const uid = C.user && C.user.id;
+          const { data } = uid ? await bucket().list(uid, { limit: 1000 }) : { data: null };
+          if (data && data.length) await bucket().remove(data.map((f) => uid + '/' + f.name));
+        } catch (e) { /* si prosegue comunque */ }
         const { error } = await sb.rpc('delete_my_account');
         if (error) { fail('delete')(error); throw new Error('errNetwork'); }
         C = empty();
@@ -439,7 +588,7 @@
       },
       addReview(roadId, { rating, text }) {
         if (!C.user) return;
-        const tmp = { id: 'tmp-' + randomHex(4), user: C.profile.name, car: C.profile.car, rating, text: text.trim(), date: new Date().toISOString().slice(0, 10), mine: true };
+        const tmp = { id: 'tmp-' + randomHex(4), user: C.profile.name, car: C.profile.car, photo: photoUrl(C.profile.photo), rating, text: text.trim(), date: new Date().toISOString().slice(0, 10), mine: true };
         reviewsByRoad[roadId] = [tmp, ...(reviewsByRoad[roadId] || [])];
         const x = (ratings[roadId] = ratings[roadId] || { sum: 0, count: 0 }); x.sum += rating; x.count += 1;
         C.myReviews += 1;
@@ -458,6 +607,129 @@
         const x = ratings[roadId];
         return x && x.count > 0 ? { avg: x.sum / x.count, count: x.count } : null;
       },
+
+      // ── foto ──
+      photoUrl,
+      async setProfilePhoto(kind, blob) {
+        if (!C.user) throw new Error('auth');
+        const col = kind === 'photo' ? 'photo' : 'car_photo', old = C.profile[col] || '';
+        let path = '';
+        if (blob) { path = `${C.user.id}/${kind === 'photo' ? 'avatar' : 'car'}-${randomHex(6)}.jpg`; await upload(path, blob); }
+        const { error } = await sb.from('profiles').update({ [col]: path }).eq('id', C.user.id);
+        if (error) { dropFile(path); fail('profile-photo')(error); throw new Error('errPhotoUpload'); }
+        C.profile[col] = path;
+        dropFile(old);
+      },
+      roadPhotos(roadId) { return (photosByRoad[roadId] || []).filter((p) => !reportedPhotos.has(p.id)); },
+      async loadRoadPhotos(roadId) {
+        const { data, error } = await sb.from('road_photos').select('*').eq('road_id', roadId).order('created_at', { ascending: false }).limit(60);
+        if (!error) photosByRoad[roadId] = data.map(mapPhoto);
+        return Store.roadPhotos(roadId);
+      },
+      myPhoto(roadId) { return C.photos[roadId] || null; },
+      isVerified(roadId) { return !!(C.photos[roadId] && C.photos[roadId].verified); },
+      async addRoadPhoto(roadId, blob, verifiedBy) {
+        if (!C.user) throw new Error('auth');
+        if (!C.driven[roadId]) throw new Error('errPhotoDriven');
+        const path = `${C.user.id}/road-${roadId}-${randomHex(6)}.jpg`;
+        await upload(path, blob);
+        await Store.deleteRoadPhoto(roadId); // una sola foto per strada: la nuova sostituisce la vecchia
+        const { data, error } = await sb.from('road_photos')
+          .insert({ road_id: roadId, user_id: C.user.id, path, verified: !!verifiedBy, verified_by: verifiedBy || '' }).select().single();
+        if (error) {
+          dropFile(path); fail('road-photo')(error);
+          const m = error.message || '';
+          throw new Error(/too_many/.test(m) ? 'errPhotoMany' : /not_driven/.test(m) ? 'errPhotoDriven' : 'errPhotoUpload');
+        }
+        C.photos[roadId] = { id: data.id, road_id: roadId, path, verified: data.verified };
+        photosByRoad[roadId] = [mapPhoto(data), ...(photosByRoad[roadId] || []).filter((p) => !p.mine)];
+      },
+      async deleteRoadPhoto(roadId) {
+        const mine = C.photos[roadId];
+        if (!mine) return;
+        const { error } = await sb.from('road_photos').delete().eq('id', mine.id);
+        if (error) { fail('road-photo-delete')(error); throw new Error('errNetwork'); }
+        delete C.photos[roadId];
+        photosByRoad[roadId] = (photosByRoad[roadId] || []).filter((p) => p.id !== mine.id);
+        dropFile(mine.path);
+      },
+      async reportPhoto(roadId, photoId) {
+        if (!C.user) throw new Error('auth');
+        reportedPhotos.add(photoId);
+        const res = await sb.from('photo_reports').insert({ photo_id: photoId, user_id: C.user.id });
+        if (res.error && res.error.code !== '23505') { reportedPhotos.delete(photoId); fail('photo-report')(res.error); throw new Error('errNetwork'); }
+      },
+
+      // ── itinerari ──
+      myTrips() { return C.trips; },
+      publicTrips() { return publicTripsList.filter((x) => !reportedTrips.has(x.id) && !x.mine); },
+      async loadPublicTrips() {
+        const { data, error } = await sb.from('trips').select('*').eq('public', true).eq('hidden', false).order('updated_at', { ascending: false }).limit(30);
+        if (!error) publicTripsList = data.map(mapTrip);
+        return Store.publicTrips();
+      },
+      async getTrip(id) {
+        const mine = C.trips.find((x) => x.id === id);
+        if (mine) return mine;
+        if (!/^[0-9a-f-]{36}$/i.test(id)) return null;
+        const { data, error } = await sb.from('trips').select('*').eq('id', id).maybeSingle();
+        return !error && data ? mapTrip(data) : null;
+      },
+      async saveTrip(tr) {
+        if (!C.user) throw new Error('auth');
+        const row = { title: tr.title, stops: tr.stops.map((s) => ({ r: s.r })), hours: tr.hours || 5, manual: !!tr.manual, public: !!tr.public };
+        const q = tr.id ? sb.from('trips').update(row).eq('id', tr.id) : sb.from('trips').insert(Object.assign({ user_id: C.user.id }, row));
+        const { data, error } = await q.select().single();
+        if (error) { fail('trip')(error); throw new Error(/too_many/.test(error.message || '') ? 'errRateLimit' : 'errNetwork'); }
+        const t = mapTrip(data);
+        C.trips = [t, ...C.trips.filter((x) => x.id !== t.id)];
+        return t.id;
+      },
+      async deleteTrip(id) {
+        const { error } = await sb.from('trips').delete().eq('id', id);
+        if (error) { fail('trip-delete')(error); throw new Error('errNetwork'); }
+        C.trips = C.trips.filter((x) => x.id !== id);
+      },
+      async reportTrip(id) {
+        if (!C.user) throw new Error('auth');
+        reportedTrips.add(id);
+        const res = await sb.from('trip_reports').insert({ trip_id: id, user_id: C.user.id });
+        if (res.error && res.error.code !== '23505') { reportedTrips.delete(id); fail('trip-report')(res.error); throw new Error('errNetwork'); }
+      },
+
+      // ── notifiche: preferenze sul database (servono al servizio che spedisce le push) ──
+      notifyPrefs() {
+        const n = C.notify;
+        return n ? { push: !!n.push, reopen: n.reopen, wxFav: n.wx_fav, wxNear: n.wx_near, news: n.news, nearMin: n.near_min || 120 } : Object.assign({}, NOTIFY_DEFAULT);
+      },
+      // near: [lat, lng] della partenza, arrotondata a ~10 km (solo per "Weekend di sole vicino a te" via push)
+      async setNotifyPrefs(p, near, lang) {
+        if (!C.user) return;
+        const cur = Object.assign(Store.notifyPrefs(), p);
+        const row = { user_id: C.user.id, push: !!cur.push, reopen: !!cur.reopen, wx_fav: !!cur.wxFav, wx_near: !!cur.wxNear, news: !!cur.news, near_min: cur.nearMin,
+          near_lat: near && cur.wxNear ? Math.round(near[0] * 10) / 10 : null, near_lng: near && cur.wxNear ? Math.round(near[1] * 10) / 10 : null,
+          lang: lang === 'en' ? 'en' : 'it', updated_at: new Date().toISOString() };
+        C.notify = row;
+        const { error } = await sb.from('notify_prefs').upsert(row);
+        if (error) { fail('notify')(error); throw new Error('errNetwork'); }
+      },
+      async newsSince(roadIds, since) {
+        if (!roadIds.length) return [];
+        const me = C.user && C.user.id;
+        const [a, b] = await Promise.all([
+          sb.from('road_photos').select('road_id, user_id, created_at').in('road_id', roadIds).gt('created_at', since).limit(100),
+          sb.from('reviews').select('road_id, user_id, created_at').in('road_id', roadIds).gt('created_at', since).limit(100),
+        ]);
+        const out = [];
+        if (!a.error) a.data.forEach((x) => x.user_id !== me && out.push({ kind: 'photo', road: x.road_id, at: x.created_at }));
+        if (!b.error) b.data.forEach((x) => x.user_id !== me && out.push({ kind: 'review', road: x.road_id, at: x.created_at }));
+        return out;
+      },
+      async savePushSub(sub) {
+        const { error } = await sb.rpc('save_push_sub', { p_endpoint: sub.endpoint, p_p256dh: sub.keys.p256dh, p_auth: sub.keys.auth });
+        if (error) { fail('push-sub')(error); throw new Error('errNetwork'); }
+      },
+      async removePushSub(endpoint) { if (C.user) await sb.from('push_subs').delete().eq('endpoint', endpoint); },
     });
     return { Auth, Store };
   }
