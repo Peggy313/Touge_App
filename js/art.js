@@ -136,7 +136,7 @@
 
     // alberi lungo i bordi della strada e sul fronte
     let trees = '';
-    if (forest) {
+    if (forest && !opts.clean) { // clean: cartoline senza alberi né fogliame
       const count = Math.round(14 + (1 - altNorm) * 18);
       for (let i = 0; i < count; i++) {
         const t = r();
@@ -147,7 +147,7 @@
       }
     }
     // fogliame in primo piano negli angoli (stile poster touge)
-    const foliage = forest
+    const foliage = forest && !opts.clean
       ? `<g fill="${m.tree}">${[0, 1].map((side) => Array.from({ length: 5 }, () => `<circle cx="${(side ? w - r() * w * 0.12 : r() * w * 0.12).toFixed(0)}" cy="${(r() * h * 0.35).toFixed(0)}" r="${((14 + r() * 26) * sc).toFixed(0)}"/>`).join('')).join('')}</g>`
       : '';
 
